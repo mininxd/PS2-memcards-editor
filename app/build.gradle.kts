@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "xyz.armsx2.memcard"
+    namespace = "com.armsx2.memcards"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "xyz.armsx2.memcard"
+        applicationId = "com.armsx2.memcards"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
