@@ -52,7 +52,7 @@ This project is a dedicated **PS2 Memory Card Reader and Editor** designed to ea
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml # Targets SDK 30, intent-filters for .ps2/.psu files
-│       │   ├── java/com/ps2/memcard/
+│       │   ├── java/xyz/armsx2/memcard/
 │       │   │   ├── core/           # Pure Kotlin PS2 Memory Card File System Engine
 │       │   │   │   ├── Ps2Memcard.kt          # Superblock, FAT, directory, cluster I/O
 │       │   │   │   ├── Ps2SuperBlock.kt       # Superblock layout, geometry, verification
@@ -87,7 +87,7 @@ This project is a dedicated **PS2 Memory Card Reader and Editor** designed to ea
 │       │   │           └── EmptyStateScreen.kt
 │       │   └── res/
 │       └── test/
-│           └── java/com/ps2/memcard/
+│           └── java/xyz/armsx2/memcard/
 │               └── Ps2MemcardTest.kt
 ├── reference/                      # Preserved C++ memory card source & filesystem docs
 │   ├── PS2-MemoryCardFileSystem.htm
