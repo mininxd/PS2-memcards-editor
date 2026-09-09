@@ -113,14 +113,18 @@ data class Ps2DirectoryEntry(
             buf.position(0x20)
             val attr = buf.int.toLong() and 0xFFFFFFFFL
 
-            buf.position(0x40)
-            val nameBytes = ByteArray(32)
-            buf.get(nameBytes)
+            val maxNameLen = ENTRY_SIZE - 0x40
             var nameLen = 0
-            while (nameLen < 32 && nameBytes[nameLen] != 0.toByte()) {
+            while (nameLen < maxNameLen && offset + 0x40 + nameLen < data.size && data[offset + 0x40 + nameLen] != 0.toByte()) {
                 nameLen++
             }
-            val name = String(nameBytes, 0, nameLen, Charsets.US_ASCII)
+            val name = if (nameLen > 0) {
+                try {
+                    String(data, offset + 0x40, nameLen, Charsets.UTF_8).trim()
+                } catch (_: Throwable) {
+                    String(data, offset + 0x40, nameLen, Charsets.US_ASCII).trim()
+                }
+            } else ""
 
             return Ps2DirectoryEntry(
                 mode = mode,
