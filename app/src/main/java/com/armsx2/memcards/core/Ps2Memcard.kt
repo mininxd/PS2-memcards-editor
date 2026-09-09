@@ -207,18 +207,20 @@ class Ps2Memcard private constructor(
             out.write(clusterBytes)
 
             val fatEntry = getFatEntry(curCluster)
-            val isEof = (fatEntry and 0x7FFFFFFFL) == 0x7FFFFFFFL || fatEntry == 0xFFFFFFFFL
+            val nextCluster = fatEntry and 0x7FFFFFFFL
+            val isEof = nextCluster == 0x7FFFFFFFL || fatEntry == 0xFFFFFFFFL
             if (isEof) {
                 // EOF reached
                 break
             }
 
-            if ((fatEntry and 0x80000000L) == 0L) {
-                // Free cluster encountered unexpectedly
+            val isAllocated = (fatEntry and 0x80000000L) != 0L
+            if (!isAllocated && (nextCluster <= 0L || nextCluster >= maxAllocatable)) {
+                // Free or invalid cluster
                 break
             }
 
-            curCluster = fatEntry and 0x7FFFFFFFL
+            curCluster = nextCluster
         }
 
         val fullData = out.toByteArray()
@@ -239,12 +241,13 @@ class Ps2Memcard private constructor(
         val saves = mutableListOf<Ps2Save>()
         val seenNames = mutableSetOf<String>()
 
-        // 1. Read entries from root directory
         val rootEntries = readRootDirectoryEntries()
         for (entry in rootEntries) {
             val name = entry.name.trim().trimEnd('\u0000')
             if (name.isBlank() || name == "." || name == ".." || seenNames.contains(name)) continue
-            if (!isValidSaveName(name)) continue
+            if (!entry.isExists) continue
+            // In root directory, a PS2 game save is a directory; a PS1 game save is a file marked with DF_PSX
+            if (!entry.isDirectory && !entry.isPsx) continue
 
             try {
                 val save = buildSaveFromEntryLightweight(entry)
@@ -256,44 +259,20 @@ class Ps2Memcard private constructor(
             }
         }
 
-        // 2. Fallback scan if root directory traversal yielded 0 saves
-        if (saves.isEmpty()) {
-            val scannedEntries = scanForDirectoryEntries()
-            for (entry in scannedEntries) {
-                val name = entry.name.trim().trimEnd('\u0000')
-                if (name.isBlank() || name == "." || name == ".." || seenNames.contains(name)) continue
-                if (!isValidSaveName(name)) continue
-
-                try {
-                    val save = buildSaveFromEntryLightweight(entry)
-                    if (save != null) {
-                        saves.add(save)
-                        seenNames.add(name)
-                    }
-                } catch (_: Throwable) {
-                }
-            }
-        }
-
         return saves
-    }
-
-    private fun isValidSaveName(name: String): Boolean {
-        if (name.length < 2 || name.length > 32) return false
-        return name.all { it.code in 32..126 }
     }
 
     private fun readRootDirectoryEntries(): List<Ps2DirectoryEntry> {
         val entries = mutableListOf<Ps2DirectoryEntry>()
         val maxAllocatable = superBlock.allocatableClusters
 
-        // 1. First follow root directory FAT cluster chain
+        // 1. Follow root directory FAT cluster chain
         val rootDirData = readClusterChain(superBlock.rootdirCluster)
         if (rootDirData.isNotEmpty()) {
             val count = rootDirData.size / Ps2DirectoryEntry.ENTRY_SIZE
             for (i in 0 until count) {
                 val entry = Ps2DirectoryEntry.parse(rootDirData, i * Ps2DirectoryEntry.ENTRY_SIZE)
-                if (entry != null && entry.name.isNotBlank()) {
+                if (entry != null && entry.isExists && entry.name.isNotBlank()) {
                     entries.add(entry)
                 }
             }
@@ -303,7 +282,7 @@ class Ps2Memcard private constructor(
         val rootDot = entries.firstOrNull { it.name == "." }
         val expectedEntries = rootDot?.length?.toInt() ?: 0
 
-        // If FAT chain returned fewer entries than rootDot expects, read sequential clusters
+        // If FAT chain returned fewer clusters than rootDot expects, read sequential clusters
         val entriesPerCluster = maxOf(1, clusterSize / Ps2DirectoryEntry.ENTRY_SIZE)
         val clustersNeeded = if (expectedEntries in 1..2048) {
             (expectedEntries + entriesPerCluster - 1) / entriesPerCluster
@@ -311,8 +290,9 @@ class Ps2Memcard private constructor(
             0
         }
 
-        if (clustersNeeded > (rootDirData.size / clusterSize)) {
-            for (c in 0 until clustersNeeded) {
+        val clustersRead = rootDirData.size / clusterSize
+        if (clustersNeeded > clustersRead) {
+            for (c in clustersRead until clustersNeeded) {
                 val clusterIdx = superBlock.rootdirCluster + c
                 if (clusterIdx >= maxAllocatable) break
                 val physicalCluster = allocOffset + clusterIdx
@@ -322,48 +302,29 @@ class Ps2Memcard private constructor(
                 val inCluster = clusterBytes.size / Ps2DirectoryEntry.ENTRY_SIZE
                 for (j in 0 until inCluster) {
                     val entry = Ps2DirectoryEntry.parse(clusterBytes, j * Ps2DirectoryEntry.ENTRY_SIZE)
-                    if (entry != null && entry.name.isNotBlank() && entry.name != "." && entry.name != "..") {
-                        if (entries.none { it.name == entry.name }) {
-                            entries.add(entry)
+                    if (entry != null && entry.isExists && entry.name.isNotBlank() && entry.name != "." && entry.name != "..") {
+                        // Strictly directories or PS1 saves in root directory
+                        if (entry.isDirectory || entry.isPsx) {
+                            if (entries.none { it.name == entry.name }) {
+                                entries.add(entry)
+                            }
                         }
                     }
                 }
             }
         }
 
-        return entries
-    }
-
-    private fun scanForDirectoryEntries(): List<Ps2DirectoryEntry> {
-        val entries = mutableListOf<Ps2DirectoryEntry>()
-        val maxScanClusters = minOf(64L, superBlock.allocatableClusters)
-
-        for (c in 0 until maxScanClusters) {
-            val physicalCluster = allocOffset + c
-            if (physicalCluster >= totalClusters) break
-            val clusterBytes = readCluster(physicalCluster)
-            val count = clusterBytes.size / Ps2DirectoryEntry.ENTRY_SIZE
-            for (i in 0 until count) {
-                val entry = Ps2DirectoryEntry.parse(clusterBytes, i * Ps2DirectoryEntry.ENTRY_SIZE) ?: continue
-                val name = entry.name.trim().trimEnd('\u0000')
-                if (isValidSaveName(name) && name != "." && name != "..") {
-                    if (entry.cluster in 0 until superBlock.allocatableClusters) {
-                        if (entries.none { it.name == name }) {
-                            entries.add(entry)
-                        }
-                    }
-                }
-            }
-        }
         return entries
     }
 
     private fun buildSaveFromEntryLightweight(dirEntry: Ps2DirectoryEntry): Ps2Save? {
         val saveName = dirEntry.name.trim().trimEnd('\u0000')
         if (saveName.isBlank() || saveName == "." || saveName == "..") return null
+        if (!dirEntry.isExists) return null
 
         // PS1 save file (single file in root directory)
-        if (!dirEntry.isDirectory && (dirEntry.isPsx || dirEntry.isFile || dirEntry.length > 0)) {
+        if (!dirEntry.isDirectory) {
+            if (!dirEntry.isPsx) return null
             val files = listOf(
                 Ps2SaveFile(
                     name = saveName,
@@ -412,14 +373,17 @@ class Ps2Memcard private constructor(
             val fileEntry = Ps2DirectoryEntry.parse(folderData, offset) ?: continue
             val fName = fileEntry.name.trim().trimEnd('\u0000')
 
-            if (fName.isBlank() || fName == "." || fName == ".." || !isValidSaveName(fName)) continue
+            if (!fileEntry.isExists || fName.isBlank() || fName == "." || fName == "..") continue
 
             if (!fileEntry.isDirectory) {
                 totalBytes += fileEntry.length
 
                 // If icon.sys, extract game title and subtitle without loading textures/images
                 if (fName.equals("icon.sys", ignoreCase = true)) {
-                    val iconSysData = readClusterChain(fileEntry.cluster, minOf(fileEntry.length.coerceAtLeast(964L), 1024L))
+                    var iconSysData = readClusterChain(fileEntry.cluster, minOf(fileEntry.length.coerceAtLeast(964L), 1024L))
+                    if (iconSysData.isEmpty() && fileEntry.cluster in 0 until superBlock.allocatableClusters) {
+                        iconSysData = readCluster(allocOffset + fileEntry.cluster)
+                    }
                     if (iconSysData.isNotEmpty()) {
                         iconSys = try {
                             Ps2IconSys.parse(iconSysData)
@@ -468,12 +432,18 @@ class Ps2Memcard private constructor(
     fun getSaveFileBytes(saveName: String, fileName: String): ByteArray? {
         val rootEntries = readRootDirectoryEntries()
         val saveEntry = rootEntries.firstOrNull { it.name.trim().trimEnd('\u0000') == saveName }
-            ?: scanForDirectoryEntries().firstOrNull { it.name.trim().trimEnd('\u0000') == saveName }
             ?: return null
 
         if (!saveEntry.isDirectory) {
             return if (saveEntry.name.trim().trimEnd('\u0000') == fileName) {
-                readClusterChain(saveEntry.cluster, saveEntry.length)
+                var bytes = readClusterChain(saveEntry.cluster, saveEntry.length)
+                if (bytes.isEmpty() && saveEntry.cluster in 0 until superBlock.allocatableClusters && saveEntry.length > 0) {
+                    val singleCluster = readCluster(allocOffset + saveEntry.cluster)
+                    val len = minOf(saveEntry.length.toInt(), singleCluster.size)
+                    bytes = ByteArray(len)
+                    System.arraycopy(singleCluster, 0, bytes, 0, len)
+                }
+                bytes
             } else {
                 null
             }
@@ -490,7 +460,14 @@ class Ps2Memcard private constructor(
             val fEntry = Ps2DirectoryEntry.parse(folderData, fOffset) ?: continue
             val fName = fEntry.name.trim().trimEnd('\u0000')
             if (fName.equals(fileName, ignoreCase = true)) {
-                return readClusterChain(fEntry.cluster, fEntry.length)
+                var bytes = readClusterChain(fEntry.cluster, fEntry.length)
+                if (bytes.isEmpty() && fEntry.cluster in 0 until superBlock.allocatableClusters && fEntry.length > 0) {
+                    val singleCluster = readCluster(allocOffset + fEntry.cluster)
+                    val len = minOf(fEntry.length.toInt(), singleCluster.size)
+                    bytes = ByteArray(len)
+                    System.arraycopy(singleCluster, 0, bytes, 0, len)
+                }
+                return bytes
             }
         }
         return null
@@ -929,8 +906,21 @@ class Ps2Memcard private constructor(
                     totalPages > 0 && workingData.size.toLong() == expectedRawSize -> false
                     workingData.size % 528 == 0 && workingData.size % 512 != 0 -> true
                     workingData.size % 512 == 0 && workingData.size % 528 != 0 -> false
-                    workingData.size % 528 == 0 -> true
-                    else -> (sb.cardFlags and 0x01) != 0 || (sb.cardFlags and 0x02) != 0
+                    else -> {
+                        if (workingData.size >= 528) {
+                            val computed = Ps2Ecc.generateSpareArea(workingData, 0)
+                            var matches = true
+                            for (b in 0 until 12) {
+                                if (workingData[512 + b] != computed[b]) {
+                                    matches = false
+                                    break
+                                }
+                            }
+                            matches
+                        } else {
+                            (sb.cardFlags and 0x01) != 0
+                        }
+                    }
                 }
             } else if (workingData.size % 528 == 0) {
                 // If direct parse failed but size is divisible by 528, try converting ECC to raw

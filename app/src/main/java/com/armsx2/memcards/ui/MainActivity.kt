@@ -492,6 +492,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.data?.let { uri ->
+            loadCardFromUri(uri)
+        }
+    }
+
     private fun triggerSaveCurrentCard() {
         val loaded = viewModel.uiState.value as? CardUiState.Loaded ?: return
         val bytes = viewModel.getRawCardData() ?: return

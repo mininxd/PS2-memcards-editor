@@ -27,22 +27,50 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Memory card file association -->
+            <!-- Memory card file association (file scheme) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="file" />
-                <data android:scheme="content" />
-                <data android:mimeType="*/*" />
+                <data android:host="*" />
                 <data android:pathPattern=".*\\.ps2" />
+                <data android:pathPattern=".*\\..*\\.ps2" />
                 <data android:pathPattern=".*\\.mc2" />
+                <data android:pathPattern=".*\\..*\\.mc2" />
                 <data android:pathPattern=".*\\.mcd" />
+                <data android:pathPattern=".*\\..*\\.mcd" />
                 <data android:pathPattern=".*\\.raw" />
-                <data android:pathPattern=".*\\.bin" />
+                <data android:pathPattern=".*\\..*\\.raw" />
                 <data android:pathPattern=".*\\.vmc" />
+                <data android:pathPattern=".*\\..*\\.vmc" />
                 <data android:pathPattern=".*\\.psu" />
+                <data android:pathPattern=".*\\..*\\.psu" />
                 <data android:pathPattern=".*\\.max" />
+                <data android:pathPattern=".*\\..*\\.max" />
+            </intent-filter>
+
+            <!-- Memory card file association (content scheme) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.ps2" />
+                <data android:pathPattern=".*\\..*\\.ps2" />
+                <data android:pathPattern=".*\\.mc2" />
+                <data android:pathPattern=".*\\..*\\.mc2" />
+                <data android:pathPattern=".*\\.mcd" />
+                <data android:pathPattern=".*\\..*\\.mcd" />
+                <data android:pathPattern=".*\\.raw" />
+                <data android:pathPattern=".*\\..*\\.raw" />
+                <data android:pathPattern=".*\\.vmc" />
+                <data android:pathPattern=".*\\..*\\.vmc" />
+                <data android:pathPattern=".*\\.psu" />
+                <data android:pathPattern=".*\\..*\\.psu" />
+                <data android:pathPattern=".*\\.max" />
+                <data android:pathPattern=".*\\..*\\.max" />
             </intent-filter>
         </activity>
     </application>
