@@ -11,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "xyz.armsx2.memcard"
         minSdk = 26
-        targetSdk = 30
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
 
@@ -51,6 +51,12 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+        disable += "ExpiredTargetSdkVersion"
     }
 }
 

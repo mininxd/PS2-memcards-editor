@@ -35,7 +35,7 @@ This project is a dedicated **PS2 Memory Card Reader and Editor** designed to ea
   - Filter chips (All, PS2, PS1, Protected) and sorting (Name, Date, Size).
   - Smooth bottom sheets and modal dialogs.
 
-- **Targeted for Android 11 / SDK 30**:
+- **Targeted for Android 11+ (minSdk 26, targetSdk 34)**:
   - Full Storage Access Framework (SAF) integration for opening and exporting files seamlessly across internal storage, SD cards, and USB OTG drives.
 
 ---
