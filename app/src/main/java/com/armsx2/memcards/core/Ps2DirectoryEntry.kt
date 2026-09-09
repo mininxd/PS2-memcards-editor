@@ -61,10 +61,10 @@ data class Ps2DirectoryEntry(
         buf.position(0x20)
         buf.putInt(attr.toInt())
 
-        // 0x40: name (32 bytes)
+        // 0x40: name (up to 448 bytes)
         buf.position(0x40)
-        val nameBytes = name.toByteArray(Charsets.US_ASCII)
-        val copyLen = minOf(nameBytes.size, 31)
+        val nameBytes = name.toByteArray(Charsets.UTF_8)
+        val copyLen = minOf(nameBytes.size, ENTRY_SIZE - 0x40 - 1)
         buf.put(nameBytes, 0, copyLen)
         buf.put(0.toByte()) // null terminator
 
@@ -77,6 +77,7 @@ data class Ps2DirectoryEntry(
         const val DF_READ = 0x0001
         const val DF_WRITE = 0x0002
         const val DF_EXECUTE = 0x0004
+        const val DF_RWX = DF_READ or DF_WRITE or DF_EXECUTE
         const val DF_PROTECTED = 0x0008
         const val DF_FILE = 0x0010
         const val DF_DIRECTORY = 0x0020

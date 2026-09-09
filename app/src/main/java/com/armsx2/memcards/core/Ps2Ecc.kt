@@ -49,8 +49,8 @@ object Ps2Ecc {
         }
 
         return (columnParity and 0xFF) or
-                ((lineParity0 and 0xFF) shl 8) or
-                ((lineParity1 and 0xFF) shl 16)
+                ((lineParity0 and 0x7F) shl 8) or
+                ((lineParity1 and 0x7F) shl 16)
     }
 
     /**
