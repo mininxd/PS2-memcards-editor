@@ -78,8 +78,36 @@ class MemcardViewModel : ViewModel() {
     private val _hexViewerData = MutableStateFlow<Pair<String, ByteArray>?>(null)
     val hexViewerData: StateFlow<Pair<String, ByteArray>?> = _hexViewerData.asStateFlow()
 
+    private val _hasUnsavedChanges = MutableStateFlow(false)
+    val hasUnsavedChanges: StateFlow<Boolean> = _hasUnsavedChanges.asStateFlow()
+
+    private val _customDirectoryUri = MutableStateFlow<Uri?>(null)
+    val customDirectoryUri: StateFlow<Uri?> = _customDirectoryUri.asStateFlow()
+
+    private val _customDirectoryName = MutableStateFlow<String?>(null)
+    val customDirectoryName: StateFlow<String?> = _customDirectoryName.asStateFlow()
+
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
+
+    fun setCustomDirectory(uri: Uri?, name: String?) {
+        _customDirectoryUri.value = uri
+        _customDirectoryName.value = name
+    }
+
+    fun markCardSaved(savedUri: Uri? = null, savedName: String? = null) {
+        _hasUnsavedChanges.value = false
+        val current = _uiState.value as? CardUiState.Loaded ?: return
+        _uiState.value = current.copy(
+            cardName = savedName ?: current.cardName,
+            cardUri = savedUri ?: current.cardUri
+        )
+    }
+
+    fun getRawCardData(): ByteArray? {
+        val current = _uiState.value as? CardUiState.Loaded ?: return null
+        return current.memcard.toByteArray()
+    }
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -134,6 +162,7 @@ class MemcardViewModel : ViewModel() {
                     if (card != null) {
                         val saves = card.listSaves()
                         val stats = card.getStats()
+                        _hasUnsavedChanges.value = false
                         _uiState.value = CardUiState.Loaded(
                             cardName = name,
                             cardUri = uri,
@@ -162,6 +191,7 @@ class MemcardViewModel : ViewModel() {
                     if (card != null) {
                         val saves = card.listSaves()
                         val stats = card.getStats()
+                        _hasUnsavedChanges.value = true
                         _uiState.value = CardUiState.Loaded(
                             cardName = name,
                             cardUri = null,
@@ -190,6 +220,7 @@ class MemcardViewModel : ViewModel() {
                     val bytes = MemcardFormatter.format(sizeInMB, current.memcard.hasEcc)
                     val card = Ps2Memcard.open(bytes)
                     if (card != null) {
+                        _hasUnsavedChanges.value = true
                         _uiState.value = CardUiState.Loaded(
                             cardName = current.cardName,
                             cardUri = current.cardUri,
@@ -216,6 +247,7 @@ class MemcardViewModel : ViewModel() {
                         val saves = current.memcard.listSaves()
                         val stats = current.memcard.getStats()
                         _selectedSave.value = null
+                        _hasUnsavedChanges.value = true
                         _uiState.value = current.copy(saves = saves, stats = stats)
                         _snackbarMessage.value = "Deleted save $saveName"
                     } else {
@@ -228,16 +260,17 @@ class MemcardViewModel : ViewModel() {
         }
     }
 
-    fun importPsu(psuBytes: ByteArray) {
+    fun importSave(saveBytes: ByteArray) {
         val current = _uiState.value as? CardUiState.Loaded ?: return
         viewModelScope.launch {
-            _uiState.value = CardUiState.Loading("Importing save...")
+            _uiState.value = CardUiState.Loading("Importing save (.psu / .max)...")
             withContext(Dispatchers.Default) {
                 try {
-                    val success = current.memcard.importPsu(psuBytes)
+                    val success = current.memcard.importSave(saveBytes)
                     if (success) {
                         val saves = current.memcard.listSaves()
                         val stats = current.memcard.getStats()
+                        _hasUnsavedChanges.value = true
                         _uiState.value = current.copy(saves = saves, stats = stats)
                         _snackbarMessage.value = "Imported save successfully!"
                     } else {
@@ -252,9 +285,16 @@ class MemcardViewModel : ViewModel() {
         }
     }
 
+    fun importPsu(psuBytes: ByteArray) = importSave(psuBytes)
+
     fun exportPsu(saveName: String): ByteArray? {
         val current = _uiState.value as? CardUiState.Loaded ?: return null
         return current.memcard.exportSaveAsPsu(saveName)
+    }
+
+    fun exportMax(saveName: String): ByteArray? {
+        val current = _uiState.value as? CardUiState.Loaded ?: return null
+        return current.memcard.exportSaveAsMax(saveName)
     }
 
     fun exportZip(saveName: String): ByteArray? {
@@ -286,6 +326,7 @@ class MemcardViewModel : ViewModel() {
                     if (card != null) {
                         val saves = card.listSaves()
                         val stats = card.getStats()
+                        _hasUnsavedChanges.value = true
                         _uiState.value = CardUiState.Loaded(
                             cardName = current.cardName,
                             cardUri = current.cardUri,
@@ -348,6 +389,7 @@ class MemcardViewModel : ViewModel() {
 
                     val saves = card.listSaves()
                     val stats = card.getStats()
+                    _hasUnsavedChanges.value = true
                     _uiState.value = CardUiState.Loaded(
                         cardName = "Demo_Mcd001.ps2",
                         cardUri = null,

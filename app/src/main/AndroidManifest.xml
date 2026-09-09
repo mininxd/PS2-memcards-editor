@@ -42,6 +42,7 @@
                 <data android:pathPattern=".*\\.bin" />
                 <data android:pathPattern=".*\\.vmc" />
                 <data android:pathPattern=".*\\.psu" />
+                <data android:pathPattern=".*\\.max" />
             </intent-filter>
         </activity>
     </application>

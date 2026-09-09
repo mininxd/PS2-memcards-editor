@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun EmptyStateScreen(
+    customDirectoryName: String? = null,
+    onSelectCustomDirectory: () -> Unit = {},
     onOpenCard: () -> Unit,
     onCreateCard: () -> Unit,
     onCreateDemoCard: () -> Unit,
@@ -81,7 +83,7 @@ fun EmptyStateScreen(
         Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-            text = "Open, manage, extract, and convert PlayStation 2 memory card files (.ps2, .mc2, .mcd, .raw, .psu) with Material You.",
+            text = "Open, manage, extract, and convert PlayStation 2 memory card files (.ps2, .mc2, .mcd, .raw, .psu, .max) with Material You.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 12.dp),
@@ -109,6 +111,17 @@ fun EmptyStateScreen(
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             onClick = onCreateCard
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        ActionCard(
+            title = "Custom Directory (ARMSX2)",
+            subtitle = customDirectoryName?.let { "Selected: $it" } ?: "Select custom folder to manage emulator cards directly",
+            icon = Icons.Default.FolderOpen,
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+            onClick = onSelectCustomDirectory
         )
 
         Spacer(modifier = Modifier.height(12.dp))

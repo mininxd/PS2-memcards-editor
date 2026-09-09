@@ -388,10 +388,32 @@ class Ps2Memcard private constructor(
     }
 
     /**
+     * Imports a save file archive (.psu or .max) onto this memory card.
+     */
+    fun importSave(saveData: ByteArray): Boolean {
+        val unpacked = when {
+            MaxHandler.isMax(saveData) -> MaxHandler.unpackMax(saveData)
+            else -> PsuHandler.unpackPsu(saveData)
+        } ?: return false
+        return importUnpackedSave(unpacked)
+    }
+
+    /**
      * Imports a .psu save archive onto this memory card.
      */
     fun importPsu(psuData: ByteArray): Boolean {
-        val unpacked = PsuHandler.unpackPsu(psuData) ?: return false
+        return importSave(psuData)
+    }
+
+    /**
+     * Imports an Action Replay MAX (.max) save archive onto this memory card.
+     */
+    fun importMax(maxData: ByteArray): Boolean {
+        val unpacked = MaxHandler.unpackMax(maxData) ?: return false
+        return importUnpackedSave(unpacked)
+    }
+
+    private fun importUnpackedSave(unpacked: PsuHandler.UnpackedPsu): Boolean {
         val saveName = unpacked.dirEntry.name.ifBlank { "IMPORT" }
 
         // If a save with the same name exists, delete it first
@@ -494,6 +516,20 @@ class Ps2Memcard private constructor(
             filesMap[f.name] = data
         }
         return PsuHandler.packPsu(saveName, save.dirEntry, filesMap)
+    }
+
+    /**
+     * Exports a save folder as an Action Replay MAX (.max) byte array.
+     */
+    fun exportSaveAsMax(saveName: String): ByteArray? {
+        val save = listSaves().firstOrNull { it.directoryName == saveName } ?: return null
+        val filesMap = mutableMapOf<String, ByteArray>()
+        for (f in save.files) {
+            val data = f.data ?: getSaveFileBytes(saveName, f.name) ?: ByteArray(0)
+            filesMap[f.name] = data
+        }
+        val title = save.title.ifBlank { saveName }
+        return MaxHandler.packMax(saveName, title, filesMap)
     }
 
     private fun addEntryToRootDirectory(newEntry: Ps2DirectoryEntry): Boolean {

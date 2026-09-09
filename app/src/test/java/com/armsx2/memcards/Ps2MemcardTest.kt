@@ -1,8 +1,10 @@
 package com.armsx2.memcards
 
+import com.armsx2.memcards.core.MaxHandler
 import com.armsx2.memcards.core.MemcardFormatter
 import com.armsx2.memcards.core.Ps2DirectoryEntry
 import com.armsx2.memcards.core.Ps2Ecc
+import com.armsx2.memcards.core.Ps2Lzari
 import com.armsx2.memcards.core.Ps2Memcard
 import com.armsx2.memcards.core.Ps2SuperBlock
 import com.armsx2.memcards.core.Ps2Timestamp
@@ -213,5 +215,90 @@ class Ps2MemcardTest {
         assertEquals(0, emptyChain.size)
         val negChain = card.readClusterChain(-1)
         assertEquals(0, negChain.size)
+    }
+
+    @Test
+    fun testLzariCompressionRoundtrip() {
+        val originalText = "Action Replay MAX (.max) save file format test with repetition! " +
+                "Resident Evil 4, Metal Gear Solid 3, God of War 2. " +
+                "ABCDEF0123456789".repeat(10)
+        val originalBytes = originalText.toByteArray(Charsets.UTF_8)
+
+        val compressed = Ps2Lzari.compress(originalBytes)
+        assertTrue(compressed.isNotEmpty())
+        assertTrue(compressed.size < originalBytes.size)
+
+        val decompressed = Ps2Lzari.decompress(compressed, originalBytes.size)
+        assertArrayEquals(originalBytes, decompressed)
+    }
+
+    @Test
+    fun testMaxSavePackAndUnpack() {
+        val dirName = "BASLUS-21445"
+        val title = "Final Fantasy X"
+        val iconSysBytes = "icon.sys test payload".toByteArray(Charsets.UTF_8)
+        val gameSaveBytes = ByteArray(3000) { (it % 250).toByte() }
+        val files = mapOf(
+            "icon.sys" to iconSysBytes,
+            "data.bin" to gameSaveBytes
+        )
+
+        val packedMax = MaxHandler.packMax(dirName, title, files)
+        assertNotNull(packedMax)
+        assertTrue(MaxHandler.isMax(packedMax))
+
+        val header = MaxHandler.parseHeader(packedMax)
+        assertNotNull(header)
+        assertEquals(dirName, header!!.dirName)
+        assertEquals(title, header.iconSysTitle)
+        assertEquals(files.size, header.fileCount)
+
+        val unpacked = MaxHandler.unpackMax(packedMax)
+        assertNotNull(unpacked)
+        assertEquals(dirName, unpacked!!.dirEntry.name)
+        assertEquals(files.size, unpacked.files.size)
+        assertArrayEquals(iconSysBytes, unpacked.files["icon.sys"])
+        assertArrayEquals(gameSaveBytes, unpacked.files["data.bin"])
+    }
+
+    @Test
+    fun testMaxSaveImportAndExportOnCard() {
+        val cardData = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
+        val card = Ps2Memcard.open(cardData)!!
+
+        val dirName = "SLUS-20672"
+        val title = "Gran Turismo 4"
+        val filePayload = ByteArray(1500) { 0x5A.toByte() }
+        val files = mapOf(
+            "save.dat" to filePayload,
+            "meta.bin" to "GT4 Profile".toByteArray(Charsets.UTF_8)
+        )
+
+        val maxData = MaxHandler.packMax(dirName, title, files)
+        assertTrue(card.importSave(maxData))
+
+        // Verify save is visible on card
+        val saves = card.listSaves()
+        assertEquals(1, saves.size)
+        assertEquals(dirName, saves[0].directoryName)
+
+        // Read file bytes back
+        val readData = card.getSaveFileBytes(dirName, "save.dat")
+        assertNotNull(readData)
+        assertArrayEquals(filePayload, readData)
+
+        // Export as MAX
+        val exportedMax = card.exportSaveAsMax(dirName)
+        assertNotNull(exportedMax)
+        assertTrue(MaxHandler.isMax(exportedMax!!))
+
+        val reUnpacked = MaxHandler.unpackMax(exportedMax)
+        assertNotNull(reUnpacked)
+        assertEquals(dirName, reUnpacked!!.dirEntry.name)
+        assertArrayEquals(filePayload, reUnpacked.files["save.dat"])
+
+        // Delete save
+        assertTrue(card.deleteSave(dirName))
+        assertEquals(0, card.listSaves().size)
     }
 }

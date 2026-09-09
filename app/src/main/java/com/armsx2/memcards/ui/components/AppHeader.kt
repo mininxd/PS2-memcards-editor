@@ -9,13 +9,18 @@ import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SaveAs
 import androidx.compose.material.icons.filled.Transform
 import androidx.compose.material.icons.filled.VideogameAsset
+import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,8 +39,13 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AppHeader(
     cardName: String?,
+    hasUnsavedChanges: Boolean = false,
+    isInMemoryOnly: Boolean = false,
     onOpenCard: () -> Unit,
     onCreateCard: () -> Unit,
+    onSaveCard: () -> Unit,
+    onSaveCardAs: () -> Unit,
+    onSelectCustomDirectory: () -> Unit,
     onFormatCard: () -> Unit,
     onShowStats: () -> Unit,
     onShowConvert: () -> Unit,
@@ -55,9 +65,9 @@ fun AppHeader(
                 )
                 if (cardName != null) {
                     Text(
-                        text = cardName,
+                        text = if (hasUnsavedChanges || isInMemoryOnly) "$cardName *" else cardName,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (hasUnsavedChanges || isInMemoryOnly) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -84,6 +94,31 @@ fun AppHeader(
                 )
             }
 
+            if (cardName != null) {
+                if (hasUnsavedChanges || isInMemoryOnly) {
+                    FilledTonalIconButton(
+                        onClick = onSaveCard,
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Save Card"
+                        )
+                    }
+                } else {
+                    IconButton(onClick = onSaveCard) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Save Card",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             IconButton(onClick = { menuExpanded = true }) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
@@ -96,6 +131,23 @@ fun AppHeader(
                 onDismissRequest = { menuExpanded = false }
             ) {
                 if (cardName != null) {
+                    DropdownMenuItem(
+                        text = { Text("Save Card") },
+                        leadingIcon = { Icon(Icons.Default.Save, null) },
+                        onClick = {
+                            menuExpanded = false
+                            onSaveCard()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Save Card As...") },
+                        leadingIcon = { Icon(Icons.Default.SaveAs, null) },
+                        onClick = {
+                            menuExpanded = false
+                            onSaveCardAs()
+                        }
+                    )
+                    Divider()
                     DropdownMenuItem(
                         text = { Text("Card Diagnostics") },
                         leadingIcon = { Icon(Icons.Default.Analytics, null) },
@@ -120,7 +172,16 @@ fun AppHeader(
                             onFormatCard()
                         }
                     )
+                    Divider()
                 }
+                DropdownMenuItem(
+                    text = { Text("Select Custom Directory") },
+                    leadingIcon = { Icon(Icons.Default.FolderOpen, null) },
+                    onClick = {
+                        menuExpanded = false
+                        onSelectCustomDirectory()
+                    }
+                )
                 DropdownMenuItem(
                     text = { Text("Load Demo Card") },
                     leadingIcon = { Icon(Icons.Default.VideogameAsset, null) },

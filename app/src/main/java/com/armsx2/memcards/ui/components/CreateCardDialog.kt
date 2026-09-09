@@ -3,17 +3,27 @@ package com.armsx2.memcards.ui.components
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,8 +40,11 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun CreateCardDialog(
+    customDirectoryName: String?,
+    onSelectCustomDirectory: () -> Unit,
     onDismiss: () -> Unit,
-    onCreate: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit
+    onSaveCard: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit,
+    onCreateInMemory: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit
 ) {
     var cardName by remember { mutableStateOf("Mcd001.ps2") }
     var selectedSize by remember { mutableIntStateOf(8) }
@@ -60,7 +73,7 @@ fun CreateCardDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = "Capacity:",
@@ -68,7 +81,7 @@ fun CreateCardDialog(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -83,7 +96,7 @@ fun CreateCardDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
                     modifier = Modifier
@@ -99,7 +112,7 @@ fun CreateCardDialog(
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = if (useEcc) "528 bytes/page (Standard PCSX2/Hardware format)" else "512 bytes/page (RAW format)",
+                            text = if (useEcc) "528 B/page (Standard PCSX2/ARMSX2)" else "512 B/page (RAW format)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -109,23 +122,91 @@ fun CreateCardDialog(
                         onCheckedChange = { useEcc = it }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Custom Directory Selection
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Destination Directory",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = customDirectoryName ?: "No folder set (prompts on save)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (customDirectoryName != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = onSelectCustomDirectory,
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (customDirectoryName == null) "Select" else "Change",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
                     if (cardName.isNotBlank()) {
-                        onCreate(cardName.trim(), selectedSize, useEcc)
+                        onSaveCard(cardName.trim(), selectedSize, useEcc)
                     }
                 },
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Create")
+                Icon(Icons.Default.Save, null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Save Card")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            Row {
+                TextButton(
+                    onClick = {
+                        if (cardName.isNotBlank()) {
+                            onCreateInMemory(cardName.trim(), selectedSize, useEcc)
+                        }
+                    }
+                ) {
+                    Text("In-Memory")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
             }
         }
     )

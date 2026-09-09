@@ -35,6 +35,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.Button
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.font.FontWeight
 import com.armsx2.memcards.core.CardStats
 import com.armsx2.memcards.core.Ps2Save
 import com.armsx2.memcards.ui.FilterType
@@ -57,6 +61,9 @@ fun MainScreen(
     onExportZip: (Ps2Save) -> Unit,
     onDeleteSave: (Ps2Save) -> Unit,
     onImportPsu: () -> Unit,
+    hasUnsavedChanges: Boolean = false,
+    isInMemoryOnly: Boolean = false,
+    onSaveCard: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val filteredSaves = saves.filter { save ->
@@ -100,6 +107,53 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            if (hasUnsavedChanges || isInMemoryOnly) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Save,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isInMemoryOnly) "Unsaved Card (Stored in memory)" else "Unsaved changes on card",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        Button(
+                            onClick = onSaveCard,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(Icons.Default.Save, null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Save", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
             // Storage Bar
             StorageBar(
                 stats = stats,
