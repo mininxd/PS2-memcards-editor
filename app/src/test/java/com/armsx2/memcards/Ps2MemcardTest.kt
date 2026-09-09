@@ -135,4 +135,83 @@ class Ps2MemcardTest {
         assertTrue(deleted)
         assertEquals(0, card.listSaves().size)
     }
+
+    @Test
+    fun testVariousSizesAndEcc() {
+        // Test 64MB ECC card (matches exact size from hint.txt: 69,206,016 bytes)
+        val card64Ecc = MemcardFormatter.format(sizeInMB = 64, useEcc = true)
+        assertEquals(69206016, card64Ecc.size)
+
+        val parsed64Ecc = Ps2Memcard.open(card64Ecc)
+        assertNotNull(parsed64Ecc)
+        assertTrue(parsed64Ecc!!.hasEcc)
+        assertEquals(65536L, parsed64Ecc.totalClusters)
+        val saves64 = parsed64Ecc.listSaves()
+        assertEquals(0, saves64.size)
+        val stats64 = parsed64Ecc.getStats()
+        assertTrue(stats64.freeClusters > 0)
+        assertEquals(69206016L, parsed64Ecc.totalCapacityBytes * 528 / 512)
+
+        // Test 64MB RAW card (67,108,864 bytes)
+        val card64Raw = MemcardFormatter.format(sizeInMB = 64, useEcc = false)
+        assertEquals(67108864, card64Raw.size)
+
+        val parsed64Raw = Ps2Memcard.open(card64Raw)
+        assertNotNull(parsed64Raw)
+        assertTrue(!parsed64Raw!!.hasEcc)
+        assertEquals(65536L, parsed64Raw.totalClusters)
+
+        // Test 16MB ECC card
+        val card16 = MemcardFormatter.format(sizeInMB = 16, useEcc = true)
+        val parsed16 = Ps2Memcard.open(card16)
+        assertNotNull(parsed16)
+        assertTrue(parsed16!!.hasEcc)
+        assertEquals(16384L, parsed16.totalClusters)
+
+        // Test 128MB ECC card
+        val card128 = MemcardFormatter.format(sizeInMB = 128, useEcc = true)
+        val parsed128 = Ps2Memcard.open(card128)
+        assertNotNull(parsed128)
+        assertTrue(parsed128!!.hasEcc)
+        assertEquals(131072L, parsed128.totalClusters)
+    }
+
+    @Test
+    fun testBoundsSafety() {
+        val cardData = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
+        val card = Ps2Memcard.open(cardData)!!
+
+        // Negative page indices should not crash or throw IndexOutOfBoundsException
+        val negPage = card.readPage(-1)
+        assertEquals(512, negPage.size)
+        card.writePage(-1, ByteArray(512))
+
+        // Huge page indices should not crash
+        val hugePage = card.readPage(Int.MAX_VALUE)
+        assertEquals(512, hugePage.size)
+        card.writePage(Int.MAX_VALUE, ByteArray(512))
+
+        // Negative cluster indices
+        val negCluster = card.readCluster(-1)
+        assertEquals(card.clusterSize, negCluster.size)
+        card.writeCluster(-1, ByteArray(card.clusterSize))
+
+        // 0xFFFFFFFF cluster index (often EOF or unallocated)
+        val eofCluster = card.readCluster(0xFFFFFFFFL)
+        assertEquals(card.clusterSize, eofCluster.size)
+        card.writeCluster(0xFFFFFFFFL, ByteArray(card.clusterSize))
+
+        // FAT entry bounds
+        assertEquals(0L, card.getFatEntry(-1))
+        assertEquals(0L, card.getFatEntry(0xFFFFFFFFL))
+        assertEquals(0L, card.getFatEntry(Long.MAX_VALUE))
+        card.setFatEntry(-1, 0xFFFFFFFFL)
+        card.setFatEntry(0xFFFFFFFFL, 0xFFFFFFFFL)
+
+        // Cluster chain with invalid cluster
+        val emptyChain = card.readClusterChain(0xFFFFFFFFL)
+        assertEquals(0, emptyChain.size)
+        val negChain = card.readClusterChain(-1)
+        assertEquals(0, negChain.size)
+    }
 }

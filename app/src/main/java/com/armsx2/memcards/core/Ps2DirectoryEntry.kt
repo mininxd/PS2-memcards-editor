@@ -87,7 +87,7 @@ data class Ps2DirectoryEntry(
         const val DF_EXISTS = 0x8000
 
         fun parse(data: ByteArray, offset: Int = 0): Ps2DirectoryEntry? {
-            if (data.size - offset < ENTRY_SIZE) return null
+            if (offset < 0 || offset + ENTRY_SIZE > data.size) return null
             val buf = ByteBuffer.wrap(data, offset, ENTRY_SIZE).order(ByteOrder.LITTLE_ENDIAN)
 
             val mode = buf.short.toInt() and 0xFFFF

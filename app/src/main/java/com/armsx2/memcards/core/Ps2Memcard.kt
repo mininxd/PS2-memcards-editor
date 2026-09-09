@@ -26,14 +26,13 @@ class Ps2Memcard private constructor(
      */
     fun readPage(pageIndex: Int): ByteArray {
         val pageData = ByteArray(512)
-        val offset = if (hasEcc) {
-            pageIndex * 528
-        } else {
-            pageIndex * 512
-        }
+        if (pageIndex < 0) return pageData
 
-        if (offset + 512 <= rawData.size) {
-            System.arraycopy(rawData, offset, pageData, 0, 512)
+        val pageSize = if (hasEcc) 528L else 512L
+        val offset = pageIndex.toLong() * pageSize
+
+        if (offset >= 0 && offset + 512L <= rawData.size) {
+            System.arraycopy(rawData, offset.toInt(), pageData, 0, 512)
         }
         return pageData
     }
@@ -42,17 +41,21 @@ class Ps2Memcard private constructor(
      * Writes a single 512-byte page to the card (automatically updates ECC if needed).
      */
     fun writePage(pageIndex: Int, pageData: ByteArray) {
+        if (pageIndex < 0) return
+
         if (hasEcc) {
-            val offset = pageIndex * 528
-            if (offset + 528 <= rawData.size) {
-                System.arraycopy(pageData, 0, rawData, offset, 512)
+            val offset = pageIndex.toLong() * 528L
+            if (offset >= 0 && offset + 528L <= rawData.size) {
+                val len = minOf(pageData.size, 512)
+                System.arraycopy(pageData, 0, rawData, offset.toInt(), len)
                 val spare = Ps2Ecc.generateSpareArea(pageData)
-                System.arraycopy(spare, 0, rawData, offset + 512, 16)
+                System.arraycopy(spare, 0, rawData, (offset + 512L).toInt(), 16)
             }
         } else {
-            val offset = pageIndex * 512
-            if (offset + 512 <= rawData.size) {
-                System.arraycopy(pageData, 0, rawData, offset, 512)
+            val offset = pageIndex.toLong() * 512L
+            if (offset >= 0 && offset + 512L <= rawData.size) {
+                val len = minOf(pageData.size, 512)
+                System.arraycopy(pageData, 0, rawData, offset.toInt(), len)
             }
         }
     }
@@ -61,12 +64,19 @@ class Ps2Memcard private constructor(
      * Reads an entire cluster (typically 1024 bytes = 2 pages).
      */
     fun readCluster(clusterIndex: Long): ByteArray {
-        val startPage = (clusterIndex * superBlock.pagesPerCluster).toInt()
         val out = ByteArray(clusterSize)
+        if (clusterIndex < 0 || clusterIndex >= totalClusters || clusterIndex == 0xFFFFFFFFL) {
+            return out
+        }
+
+        val startPage = clusterIndex * superBlock.pagesPerCluster
+        val totalPages = totalClusters * superBlock.pagesPerCluster
         var outOffset = 0
 
         for (p in 0 until superBlock.pagesPerCluster) {
-            val page = readPage(startPage + p)
+            val pageIdx = startPage + p
+            if (pageIdx < 0 || pageIdx >= totalPages) break
+            val page = readPage(pageIdx.toInt())
             val toCopy = minOf(page.size, clusterSize - outOffset)
             System.arraycopy(page, 0, out, outOffset, toCopy)
             outOffset += toCopy
@@ -78,17 +88,24 @@ class Ps2Memcard private constructor(
      * Writes an entire cluster (updating ECC per page).
      */
     fun writeCluster(clusterIndex: Long, clusterData: ByteArray) {
-        val startPage = (clusterIndex * superBlock.pagesPerCluster).toInt()
+        if (clusterIndex < 0 || clusterIndex >= totalClusters || clusterIndex == 0xFFFFFFFFL) {
+            return
+        }
+
+        val startPage = clusterIndex * superBlock.pagesPerCluster
+        val totalPages = totalClusters * superBlock.pagesPerCluster
         val pageLen = superBlock.pageLen
 
         for (p in 0 until superBlock.pagesPerCluster) {
+            val pageIdx = startPage + p
+            if (pageIdx < 0 || pageIdx >= totalPages) break
             val pageData = ByteArray(pageLen)
             val srcOffset = p * pageLen
             if (srcOffset < clusterData.size) {
                 val len = minOf(pageLen, clusterData.size - srcOffset)
                 System.arraycopy(clusterData, srcOffset, pageData, 0, len)
             }
-            writePage(startPage + p, pageData)
+            writePage(pageIdx.toInt(), pageData)
         }
     }
 
@@ -96,14 +113,18 @@ class Ps2Memcard private constructor(
      * Reads a FAT entry for a given allocatable cluster index.
      */
     fun getFatEntry(clusterIndex: Long): Long {
+        if (clusterIndex < 0 || clusterIndex >= superBlock.allocatableClusters || clusterIndex == 0xFFFFFFFFL) {
+            return 0L
+        }
+
         val fatOffset = (clusterIndex % 256).toInt()
         val indirectIndex = (clusterIndex / 256).toInt()
         val indirectOffset = indirectIndex % 256
         val dblIndirectIndex = indirectIndex / 256
 
-        if (dblIndirectIndex >= superBlock.ifcList.size) return 0L
+        if (dblIndirectIndex < 0 || dblIndirectIndex >= superBlock.ifcList.size) return 0L
         val ifcCluster = superBlock.ifcList[dblIndirectIndex].toLong() and 0xFFFFFFFFL
-        if (ifcCluster == 0L) return 0L
+        if (ifcCluster <= 0L || ifcCluster >= totalClusters || ifcCluster == 0xFFFFFFFFL) return 0L
 
         // Read indirect FAT cluster
         val indirectData = readCluster(ifcCluster)
@@ -113,7 +134,7 @@ class Ps2Memcard private constructor(
 
         indirectBuf.position(fatClusterPos)
         val fatCluster = indirectBuf.int.toLong() and 0xFFFFFFFFL
-        if (fatCluster == 0L) return 0L
+        if (fatCluster <= 0L || fatCluster >= totalClusters || fatCluster == 0xFFFFFFFFL) return 0L
 
         // Read FAT cluster
         val fatData = readCluster(fatCluster)
@@ -129,14 +150,18 @@ class Ps2Memcard private constructor(
      * Writes a FAT entry for a given allocatable cluster index.
      */
     fun setFatEntry(clusterIndex: Long, value: Long) {
+        if (clusterIndex < 0 || clusterIndex >= superBlock.allocatableClusters || clusterIndex == 0xFFFFFFFFL) {
+            return
+        }
+
         val fatOffset = (clusterIndex % 256).toInt()
         val indirectIndex = (clusterIndex / 256).toInt()
         val indirectOffset = indirectIndex % 256
         val dblIndirectIndex = indirectIndex / 256
 
-        if (dblIndirectIndex >= superBlock.ifcList.size) return
+        if (dblIndirectIndex < 0 || dblIndirectIndex >= superBlock.ifcList.size) return
         val ifcCluster = superBlock.ifcList[dblIndirectIndex].toLong() and 0xFFFFFFFFL
-        if (ifcCluster == 0L) return
+        if (ifcCluster <= 0L || ifcCluster >= totalClusters || ifcCluster == 0xFFFFFFFFL) return
 
         val indirectData = readCluster(ifcCluster)
         val indirectBuf = ByteBuffer.wrap(indirectData).order(ByteOrder.LITTLE_ENDIAN)
@@ -145,7 +170,7 @@ class Ps2Memcard private constructor(
 
         indirectBuf.position(fatClusterPos)
         val fatCluster = indirectBuf.int.toLong() and 0xFFFFFFFFL
-        if (fatCluster == 0L) return
+        if (fatCluster <= 0L || fatCluster >= totalClusters || fatCluster == 0xFFFFFFFFL) return
 
         val fatData = readCluster(fatCluster)
         val fatBuf = ByteBuffer.wrap(fatData).order(ByteOrder.LITTLE_ENDIAN)
@@ -162,16 +187,17 @@ class Ps2Memcard private constructor(
      * and reads all bytes.
      */
     fun readClusterChain(startCluster: Long, expectedLength: Long = -1): ByteArray {
-        if (startCluster == 0xFFFFFFFFL || startCluster < 0) return ByteArray(0)
+        val maxAllocatable = superBlock.allocatableClusters
+        if (startCluster == 0xFFFFFFFFL || startCluster < 0 || startCluster >= maxAllocatable) return ByteArray(0)
 
         val out = ByteArrayOutputStream()
         var curCluster = startCluster
         val visited = mutableSetOf<Long>()
 
-        while (curCluster != 0xFFFFFFFFL && curCluster >= 0 && !visited.contains(curCluster)) {
+        while (curCluster != 0xFFFFFFFFL && curCluster >= 0 && curCluster < maxAllocatable && !visited.contains(curCluster)) {
             visited.add(curCluster)
             val physicalCluster = allocOffset + curCluster
-            if (physicalCluster >= totalClusters) break
+            if (physicalCluster < 0 || physicalCluster >= totalClusters) break
 
             val clusterBytes = readCluster(physicalCluster)
             out.write(clusterBytes)
@@ -497,9 +523,12 @@ class Ps2Memcard private constructor(
     }
 
     private fun writeDirectoryEntryInCluster(dirStartCluster: Long, entryIndex: Int, entry: Ps2DirectoryEntry) {
-        val offsetInBytes = entryIndex * Ps2DirectoryEntry.ENTRY_SIZE
-        val clusterOffset = offsetInBytes / clusterSize
-        val offsetWithinCluster = offsetInBytes % clusterSize
+        val maxAllocatable = superBlock.allocatableClusters
+        if (entryIndex < 0 || dirStartCluster < 0 || dirStartCluster >= maxAllocatable) return
+
+        val offsetInBytes = entryIndex.toLong() * Ps2DirectoryEntry.ENTRY_SIZE
+        val clusterOffset = (offsetInBytes / clusterSize).toInt()
+        val offsetWithinCluster = (offsetInBytes % clusterSize).toInt()
 
         // Walk to clusterOffset
         var curCluster = dirStartCluster
@@ -507,13 +536,18 @@ class Ps2Memcard private constructor(
             val fat = getFatEntry(curCluster)
             if (fat == 0xFFFFFFFFL || (fat and 0x80000000L) == 0L) return
             curCluster = fat and 0x7FFFFFFFL
+            if (curCluster < 0 || curCluster >= maxAllocatable) return
         }
 
         val physicalCluster = allocOffset + curCluster
+        if (physicalCluster < 0 || physicalCluster >= totalClusters) return
+
         val clusterData = readCluster(physicalCluster)
         val entryBytes = entry.toByteArray()
-        System.arraycopy(entryBytes, 0, clusterData, offsetWithinCluster, entryBytes.size)
-        writeCluster(physicalCluster, clusterData)
+        if (offsetWithinCluster + entryBytes.size <= clusterData.size) {
+            System.arraycopy(entryBytes, 0, clusterData, offsetWithinCluster, entryBytes.size)
+            writeCluster(physicalCluster, clusterData)
+        }
     }
 
     private fun writeNewClusterChain(data: ByteArray): Long {
@@ -555,9 +589,12 @@ class Ps2Memcard private constructor(
     }
 
     private fun freeClusterChain(startCluster: Long) {
+        val maxAllocatable = superBlock.allocatableClusters
+        if (startCluster < 0 || startCluster >= maxAllocatable || startCluster == 0xFFFFFFFFL) return
+
         var cur = startCluster
         val visited = mutableSetOf<Long>()
-        while (cur != 0xFFFFFFFFL && cur >= 0 && !visited.contains(cur)) {
+        while (cur != 0xFFFFFFFFL && cur >= 0 && cur < maxAllocatable && !visited.contains(cur)) {
             visited.add(cur)
             val fat = getFatEntry(cur)
             setFatEntry(cur, 0L) // Free in FAT
@@ -585,7 +622,7 @@ class Ps2Memcard private constructor(
 
         val totalSpace = totalCapacityBytes
         val freeSpace = free * clusterSize
-        val usedSpace = totalSpace - freeSpace
+        val usedSpace = maxOf(0L, totalSpace - freeSpace)
 
         return CardStats(
             totalClusters = totalClusters,
@@ -624,27 +661,44 @@ class Ps2Memcard private constructor(
 
     companion object {
         fun open(data: ByteArray): Ps2Memcard? {
-            if (data.size < 512) return null
+            if (data.size < Ps2SuperBlock.SUPERBLOCK_SIZE) return null
 
-            // Detect ECC:
-            // Standard ECC images have page size 528 bytes: (data.size % 528 == 0)
-            // Or test magic at page 0
-            val sbRaw = Ps2SuperBlock.parse(data)
-            if (sbRaw != null) {
-                return Ps2Memcard(data, hasEcc = false, superBlock = sbRaw)
-            }
+            // First, attempt to parse the SuperBlock directly from offset 0
+            // (Page 0 data is identical in RAW and ECC images because the 16-byte ECC
+            // spare area comes after the 512-byte page data, while the SuperBlock is 340 bytes)
+            var sb = Ps2SuperBlock.parse(data)
+            var hasEcc: Boolean? = null
 
-            // Check if it's ECC format
-            val isEccCandidate = (data.size % 528 == 0)
-            if (isEccCandidate) {
-                val raw = Ps2Ecc.convertEccToRaw(data)
-                val sbEcc = Ps2SuperBlock.parse(raw)
-                if (sbEcc != null) {
-                    return Ps2Memcard(data, hasEcc = true, superBlock = sbEcc)
+            if (sb != null) {
+                val totalPages = sb.clustersPerCard * sb.pagesPerCluster
+                val expectedEccSize = totalPages * 528L
+                val expectedRawSize = totalPages * 512L
+
+                hasEcc = when {
+                    totalPages > 0 && data.size.toLong() == expectedEccSize -> true
+                    totalPages > 0 && data.size.toLong() == expectedRawSize -> false
+                    data.size % 528 == 0 && data.size % 512 != 0 -> true
+                    data.size % 512 == 0 && data.size % 528 != 0 -> false
+                    data.size % 528 == 0 -> true
+                    else -> (sb.cardFlags and 0x01) != 0 || (sb.cardFlags and 0x02) != 0
+                }
+            } else if (data.size % 528 == 0) {
+                // If direct parse failed but size is divisible by 528, try converting ECC to raw
+                try {
+                    val raw = Ps2Ecc.convertEccToRaw(data)
+                    sb = Ps2SuperBlock.parse(raw)
+                    if (sb != null) {
+                        hasEcc = true
+                    }
+                } catch (_: Exception) {
                 }
             }
 
-            return null
+            if (sb == null || hasEcc == null) {
+                return null
+            }
+
+            return Ps2Memcard(data, hasEcc = hasEcc, superBlock = sb)
         }
     }
 }
