@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SaveAs
 import androidx.compose.material.icons.filled.Transform
-import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -45,11 +44,9 @@ fun AppHeader(
     onCreateCard: () -> Unit,
     onSaveCard: () -> Unit,
     onSaveCardAs: () -> Unit,
-    onSelectCustomDirectory: () -> Unit,
     onFormatCard: () -> Unit,
     onShowStats: () -> Unit,
     onShowConvert: () -> Unit,
-    onCreateDemoCard: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -119,18 +116,18 @@ fun AppHeader(
                 }
             }
 
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "More Options"
-                )
-            }
+            if (cardName != null) {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More Options"
+                    )
+                }
 
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false }
-            ) {
-                if (cardName != null) {
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
                     DropdownMenuItem(
                         text = { Text("Save Card") },
                         leadingIcon = { Icon(Icons.Default.Save, null) },
@@ -172,24 +169,7 @@ fun AppHeader(
                             onFormatCard()
                         }
                     )
-                    Divider()
                 }
-                DropdownMenuItem(
-                    text = { Text("Select Custom Directory") },
-                    leadingIcon = { Icon(Icons.Default.FolderOpen, null) },
-                    onClick = {
-                        menuExpanded = false
-                        onSelectCustomDirectory()
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Load Demo Card") },
-                    leadingIcon = { Icon(Icons.Default.VideogameAsset, null) },
-                    onClick = {
-                        menuExpanded = false
-                        onCreateDemoCard()
-                    }
-                )
             }
         }
     )

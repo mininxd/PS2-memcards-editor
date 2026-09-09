@@ -344,86 +344,10 @@ class MemcardViewModel : ViewModel() {
         }
     }
 
-    fun createDemoCard() {
-        viewModelScope.launch {
-            _uiState.value = CardUiState.Loading("Creating Demo Memory Card...")
-            withContext(Dispatchers.Default) {
-                try {
-                    val cardBytes = MemcardFormatter.format(8, true)
-                    val card = Ps2Memcard.open(cardBytes)!!
-
-                    // Add demo saves to showcase Material You UI
-                    val demoSaves = listOf(
-                        Triple("BASLUS-20268", "Kingdom Hearts II", "The World That Never Was"),
-                        Triple("BASLUS-21445", "Final Fantasy X", "Besaid Island - Calm Lands"),
-                        Triple("BASCUS-97198", "Gran Turismo 4", "100% Championship Complete"),
-                        Triple("SLUS-20946", "Grand Theft Auto: San Andreas", "End of the Line - 100%"),
-                        Triple("BESLES-51233", "Metal Gear Solid 3: Snake Eater", "Dremuchij South - Operation Snake Eater")
-                    )
-
-                    for ((code, title, sub) in demoSaves) {
-                        val dummyIconSys = buildDemoIconSys(title, sub)
-                        val dummyFiles = mapOf(
-                            "icon.sys" to dummyIconSys,
-                            "data01.bin" to ByteArray(4096) { 0x55.toByte() },
-                            "saveinfo.dat" to "Demo Save Info for $title".toByteArray(Charsets.UTF_8)
-                        )
-                        val psu = PsuHandler.packPsu(
-                            saveName = code,
-                            dirEntry = Ps2DirectoryEntry(
-                                mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or
-                                        Ps2DirectoryEntry.DF_READ or Ps2DirectoryEntry.DF_WRITE or
-                                        Ps2DirectoryEntry.DF_EXECUTE or Ps2DirectoryEntry.DF_0400,
-                                length = (dummyFiles.size + 2).toLong(),
-                                created = Ps2Timestamp.now(),
-                                cluster = 0,
-                                dirEntry = 0,
-                                modified = Ps2Timestamp.now(),
-                                attr = 0,
-                                name = code
-                            ),
-                            files = dummyFiles
-                        )
-                        card.importPsu(psu)
-                    }
-
-                    val saves = card.listSaves()
-                    val stats = card.getStats()
-                    _hasUnsavedChanges.value = true
-                    _uiState.value = CardUiState.Loaded(
-                        cardName = "Demo_Mcd001.ps2",
-                        cardUri = null,
-                        memcard = card,
-                        saves = saves,
-                        stats = stats
-                    )
-                    _snackbarMessage.value = "Demo Memory Card ready with 5 game saves!"
-                } catch (e: Exception) {
-                    _uiState.value = CardUiState.Error("Demo card error: ${e.message}")
-                }
-            }
-        }
-    }
-
-    private fun buildDemoIconSys(title: String, subtitle: String): ByteArray {
-        val bytes = ByteArray(0x1C0)
-        val buf = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        buf.put("PS2D".toByteArray(Charsets.US_ASCII))
-        buf.position(0x06)
-        buf.putShort(title.length.toShort())
-        buf.position(0x0C)
-        buf.putInt(0xFF) // Transparency
-
-        // Title at 0xC0
-        buf.position(0xC0)
-        val titleText = "$title\n$subtitle"
-        val titleBytes = titleText.toByteArray(Charsets.UTF_8)
-        buf.put(titleBytes, 0, minOf(titleBytes.size, 63))
-
-        // Icon file name at 0x100
-        buf.position(0x100)
-        buf.put("icon.icn".toByteArray(Charsets.US_ASCII))
-
-        return bytes
+    fun closeCard() {
+        _uiState.value = CardUiState.Empty
+        _hasUnsavedChanges.value = false
+        _selectedSave.value = null
+        _searchQuery.value = ""
     }
 }

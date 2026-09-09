@@ -1,7 +1,6 @@
 package com.armsx2.memcards.ui.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,10 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.SyncAlt
-import androidx.compose.material.icons.filled.VideogameAsset
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -38,11 +33,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun EmptyStateScreen(
-    customDirectoryName: String? = null,
-    onSelectCustomDirectory: () -> Unit = {},
     onOpenCard: () -> Unit,
     onCreateCard: () -> Unit,
-    onCreateDemoCard: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -52,12 +44,12 @@ fun EmptyStateScreen(
             .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(36.dp))
 
         // Large Memory Card Graphic
         Surface(
-            modifier = Modifier.size(96.dp),
-            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.size(100.dp),
+            shape = RoundedCornerShape(26.dp),
             color = MaterialTheme.colorScheme.primaryContainer,
             tonalElevation = 4.dp
         ) {
@@ -65,13 +57,13 @@ fun EmptyStateScreen(
                 Icon(
                     imageVector = Icons.Default.Memory,
                     contentDescription = null,
-                    modifier = Modifier.size(54.dp),
+                    modifier = Modifier.size(56.dp),
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             text = "PS2 Memory Card Editor",
@@ -80,17 +72,7 @@ fun EmptyStateScreen(
             color = MaterialTheme.colorScheme.onBackground
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = "Open, manage, extract, and convert PlayStation 2 memory card files (.ps2, .mc2, .mcd, .raw, .psu, .max) with Material You.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         // Quick Action Cards
         ActionCard(
@@ -102,7 +84,7 @@ fun EmptyStateScreen(
             onClick = onOpenCard
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         ActionCard(
             title = "Create New Card",
@@ -113,41 +95,7 @@ fun EmptyStateScreen(
             onClick = onCreateCard
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        ActionCard(
-            title = "Custom Directory (ARMSX2)",
-            subtitle = customDirectoryName?.let { "Selected: $it" } ?: "Select custom folder to manage emulator cards directly",
-            icon = Icons.Default.FolderOpen,
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-            onClick = onSelectCustomDirectory
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        ActionCard(
-            title = "Try Demo Card",
-            subtitle = "Explore with preloaded PS2 game saves and icon textures",
-            icon = Icons.Default.PlayArrow,
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            onClick = onCreateDemoCard
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Feature Highlights
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            FeaturePill(icon = Icons.Default.Security, text = "Hardware ECC", modifier = Modifier.weight(1f))
-            FeaturePill(icon = Icons.Default.SyncAlt, text = "PSU & ZIP", modifier = Modifier.weight(1f))
-            FeaturePill(icon = Icons.Default.VideogameAsset, text = "3D Icons", modifier = Modifier.weight(1f))
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -170,7 +118,7 @@ private fun ActionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -189,44 +137,13 @@ private fun ActionCard(
                     fontWeight = FontWeight.Bold,
                     color = contentColor
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = contentColor.copy(alpha = 0.8f)
+                    color = contentColor.copy(alpha = 0.85f)
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun FeaturePill(
-    icon: ImageVector,
-    text: String,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-    ) {
-        Row(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Medium
-            )
         }
     }
 }

@@ -7,16 +7,20 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +29,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
 import com.armsx2.memcards.core.MemcardFormatter
@@ -58,44 +64,63 @@ class MainActivity : ComponentActivity() {
     private var pendingExportZipBytes: ByteArray? = null
     private var pendingSaveCardBytes: ByteArray? = null
     private var pendingSaveCardName: String? = null
+    private var pendingActionAfterSave: (() -> Unit)? = null
 
     private val openCardLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { loadCardFromUri(it) }
     }
 
-    private val selectCustomDirLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        uri?.let { treeUri ->
-            try {
-                contentResolver.takePersistableUriPermission(
-                    treeUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: Exception) {}
-            val docFile = DocumentFile.fromTreeUri(this, treeUri)
-            val dirName = docFile?.name ?: treeUri.lastPathSegment ?: "Custom Directory"
-            val prefs = getSharedPreferences("memcard_prefs", Context.MODE_PRIVATE)
-            prefs.edit()
-                .putString("custom_dir_uri", treeUri.toString())
-                .putString("custom_dir_name", dirName)
-                .apply()
-            viewModel.setCustomDirectory(treeUri, dirName)
-            Toast.makeText(this, "Custom directory set: $dirName", Toast.LENGTH_SHORT).show()
+    private val selectSaveDirectoryLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri == null) {
+            pendingSaveCardBytes = null
+            pendingSaveCardName = null
+            pendingActionAfterSave = null
+            return@registerForActivityResult
         }
-    }
 
-    private val saveCardAsLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
-        uri?.let { targetUri ->
-            pendingSaveCardBytes?.let { bytes ->
-                try {
-                    contentResolver.openOutputStream(targetUri, "wt")?.use { out ->
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        } catch (_: Exception) {}
+
+        val docDir = DocumentFile.fromTreeUri(this, uri)
+        val dirName = docDir?.name ?: uri.lastPathSegment ?: "Selected Folder"
+        val prefs = getSharedPreferences("memcard_prefs", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("custom_dir_uri", uri.toString())
+            .putString("custom_dir_name", dirName)
+            .apply()
+        viewModel.setCustomDirectory(uri, dirName)
+
+        val bytes = pendingSaveCardBytes ?: viewModel.getRawCardData()
+        val cardName = pendingSaveCardName ?: (viewModel.uiState.value as? CardUiState.Loaded)?.cardName ?: "Mcd001.ps2"
+
+        if (bytes != null) {
+            try {
+                val targetFile = docDir?.findFile(cardName) ?: docDir?.createFile("application/octet-stream", cardName)
+                if (targetFile != null) {
+                    contentResolver.openOutputStream(targetFile.uri, "wt")?.use { out ->
                         out.write(bytes)
                     }
-                    val name = DocumentFile.fromSingleUri(this, targetUri)?.name ?: pendingSaveCardName ?: "Mcd001.ps2"
-                    viewModel.markCardSaved(targetUri, name)
-                    Toast.makeText(this, "Card saved to $name successfully!", Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Toast.makeText(this, "Failed to save card: ${e.message}", Toast.LENGTH_LONG).show()
+                    val currentState = viewModel.uiState.value
+                    if (currentState is CardUiState.Loaded) {
+                        viewModel.markCardSaved(targetFile.uri, cardName)
+                    } else {
+                        viewModel.loadCardFromBytes(cardName, bytes, targetFile.uri)
+                    }
+                    Toast.makeText(this, "Saved $cardName to $dirName successfully!", Toast.LENGTH_SHORT).show()
+                    val action = pendingActionAfterSave
+                    pendingActionAfterSave = null
+                    action?.invoke()
+                } else {
+                    Toast.makeText(this, "Could not create $cardName in $dirName", Toast.LENGTH_LONG).show()
+                    pendingActionAfterSave = null
                 }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to save card: ${e.message}", Toast.LENGTH_LONG).show()
+                pendingActionAfterSave = null
             }
         }
         pendingSaveCardBytes = null
@@ -207,6 +232,63 @@ class MainActivity : ComponentActivity() {
 
                 val currentCardName = (uiState as? CardUiState.Loaded)?.cardName
                 val isInMemoryOnly = (uiState as? CardUiState.Loaded)?.cardUri == null
+                var showUnsavedChangesDialog by remember { mutableStateOf(false) }
+
+                BackHandler(enabled = (uiState is CardUiState.Loaded) && selectedSave == null) {
+                    if (hasUnsavedChanges || isInMemoryOnly) {
+                        showUnsavedChangesDialog = true
+                    } else {
+                        viewModel.closeCard()
+                    }
+                }
+
+                if (showUnsavedChangesDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showUnsavedChangesDialog = false },
+                        shape = RoundedCornerShape(20.dp),
+                        title = {
+                            Text(
+                                text = "Save Changes?",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = "You have unsaved changes on this memory card. Do you want to save before closing?",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showUnsavedChangesDialog = false
+                                    pendingActionAfterSave = { viewModel.closeCard() }
+                                    triggerSaveCurrentCard()
+                                }
+                            ) {
+                                Text("Save")
+                            }
+                        },
+                        dismissButton = {
+                            Row {
+                                TextButton(
+                                    onClick = {
+                                        showUnsavedChangesDialog = false
+                                        viewModel.closeCard()
+                                    }
+                                ) {
+                                    Text("Discard")
+                                }
+                                TextButton(
+                                    onClick = { showUnsavedChangesDialog = false }
+                                ) {
+                                    Text("Cancel")
+                                }
+                            }
+                        }
+                    )
+                }
 
                 Scaffold(
                     topBar = {
@@ -218,11 +300,9 @@ class MainActivity : ComponentActivity() {
                             onCreateCard = { viewModel.setShowCreateDialog(true) },
                             onSaveCard = { triggerSaveCurrentCard() },
                             onSaveCardAs = { triggerSaveCardAs() },
-                            onSelectCustomDirectory = { selectCustomDirLauncher.launch(null) },
                             onFormatCard = { viewModel.setShowFormatDialog(true) },
                             onShowStats = { viewModel.setShowStatsDialog(true) },
-                            onShowConvert = { viewModel.setShowConvertDialog(true) },
-                            onCreateDemoCard = { viewModel.createDemoCard() }
+                            onShowConvert = { viewModel.setShowConvertDialog(true) }
                         )
                     },
                     snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -236,11 +316,8 @@ class MainActivity : ComponentActivity() {
                         when (val state = uiState) {
                             is CardUiState.Empty -> {
                                 EmptyStateScreen(
-                                    customDirectoryName = customDirectoryName,
-                                    onSelectCustomDirectory = { selectCustomDirLauncher.launch(null) },
                                     onOpenCard = { openCardLauncher.launch(arrayOf("*/*")) },
-                                    onCreateCard = { viewModel.setShowCreateDialog(true) },
-                                    onCreateDemoCard = { viewModel.createDemoCard() }
+                                    onCreateCard = { viewModel.setShowCreateDialog(true) }
                                 )
                             }
                             is CardUiState.Loading -> {
@@ -334,7 +411,7 @@ class MainActivity : ComponentActivity() {
                 if (showCreateDialog) {
                     CreateCardDialog(
                         customDirectoryName = customDirectoryName,
-                        onSelectCustomDirectory = { selectCustomDirLauncher.launch(null) },
+                        onSelectCustomDirectory = { selectSaveDirectoryLauncher.launch(null) },
                         onDismiss = { viewModel.setShowCreateDialog(false) },
                         onSaveCard = { name, size, ecc ->
                             viewModel.setShowCreateDialog(false)
@@ -360,7 +437,7 @@ class MainActivity : ComponentActivity() {
                             if (!savedInDir) {
                                 pendingSaveCardBytes = bytes
                                 pendingSaveCardName = name
-                                saveCardAsLauncher.launch(name)
+                                selectSaveDirectoryLauncher.launch(null)
                             }
                         },
                         onCreateInMemory = { name, size, ecc ->
@@ -427,9 +504,12 @@ class MainActivity : ComponentActivity() {
                 }
                 viewModel.markCardSaved(loaded.cardUri, loaded.cardName)
                 Toast.makeText(this, "Saved ${loaded.cardName} successfully!", Toast.LENGTH_SHORT).show()
+                val action = pendingActionAfterSave
+                pendingActionAfterSave = null
+                action?.invoke()
                 return
             } catch (_: Exception) {
-                // If writing to original URI failed (e.g. permission lost), fall back to custom dir / picker
+                // If writing to original URI failed (e.g. permission lost), fall back to folder picker
             }
         }
 
@@ -445,12 +525,15 @@ class MainActivity : ComponentActivity() {
                     }
                     viewModel.markCardSaved(targetFile.uri, loaded.cardName)
                     Toast.makeText(this, "Saved ${loaded.cardName} to custom directory!", Toast.LENGTH_SHORT).show()
+                    val action = pendingActionAfterSave
+                    pendingActionAfterSave = null
+                    action?.invoke()
                     return
                 }
             } catch (_: Exception) {}
         }
 
-        // Otherwise prompt Save As
+        // Otherwise prompt folder picker
         triggerSaveCardAs()
     }
 
@@ -459,7 +542,7 @@ class MainActivity : ComponentActivity() {
         val bytes = viewModel.getRawCardData() ?: return
         pendingSaveCardBytes = bytes
         pendingSaveCardName = loaded.cardName
-        saveCardAsLauncher.launch(loaded.cardName)
+        selectSaveDirectoryLauncher.launch(null)
     }
 
     private fun loadCardFromUri(uri: Uri) {
