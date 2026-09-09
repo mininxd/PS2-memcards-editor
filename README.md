@@ -1,45 +1,128 @@
-# ARMSX2 — Native ARM64 JIT Fork of PCSX2
-[![All Platforms](https://img.shields.io/github/actions/workflow/status/ARMSX2/ARMSX2/build-all.yml?branch=master&label=All%20Platforms)](https://github.com/ARMSX2/ARMSX2/actions/workflows/build-all.yml)
+# PS2 Memory Card Reader & Editor for Android
 
-ARMSX2 is a free and open-source PlayStation 2 (PS2) emulator based on PCSX2. Its purpose is to emulate the PS2's hardware, using a combination of MIPS CPU [Interpreters](<https://en.wikipedia.org/wiki/Interpreter_(computing)>), [Recompilers](https://en.wikipedia.org/wiki/Dynamic_recompilation) and a [Virtual Machine](https://en.wikipedia.org/wiki/Virtual_machine) which manages hardware states and PS2 system memory. This allows you to play PS2 games on your phone, PC, or gaming handheld, with many additional features and benefits.
+A modern, standalone PlayStation 2 Memory Card Reader, Manager, and Savegame Editor for Android (SDK 30 / Android 11+), designed with Jetpack Compose and Material You (Material 3).
 
-## Thank You
+---
 
-The ARMSX2 team is eternally indebted to the [PCSX2 project](https://pcsx2.net) it is based on. We are so fortunate to build on their 20 years of hardcore development.
+## Overview
 
-## About This Fork
+This project is a dedicated **PS2 Memory Card Reader and Editor** designed to easily browse, manage, backup, format, and **copy savegames** between memory cards and storage. Whether managing saves for emulators (PCSX2, AetherSX2, NetherSX2) or real PS2 hardware via USB/OTG adapters, this app provides full-featured memory card manipulation without needing a PC.
 
-[![Project Demo](https://img.youtube.com/vi/a1_zydGhVaE/maxresdefault.jpg)](https://www.youtube.com/watch?v=a1_zydGhVaE)
+---
 
-The upstream PCSX2 project ships an ARM64 *interpreter* build for ARM, but its high-performance **JIT recompilers** (EE, IOP, VU0, VU1, and vtlb fast memory) are x86-64 only. 
+## Features
 
-**This fork exists to close that gap.** The goal is to preserve the correctness features of 20 years of PCSX2 development, while generating the fastest native ARM performance possible.
+- **Memory Card Reader & Browser**:
+  - Direct reading and parsing of PS2 Superblocks (Page 0, 340 bytes), Indirect FAT tables, and cluster allocation chains.
+  - Full support for both **ECC format** (528 bytes/page with 16-byte Reed-Solomon/Hamming parity spare area) and **RAW format** (512 bytes/page).
+  - Opens memory card images: `.ps2`, `.mc2`, `.mcd`, `.raw`, `.bin`, `.vmc`.
+  - Reads PCSX2 Folder Memory Cards (`_pcsx2_superblock` and hierarchical directory trees).
 
-**Current status:**
-- ✅ EE (Emotion Engine) recompiler — integer, float, MMI, COP0/COP1/COP2, branches, load/store
-- ✅ IOP (I/O Processor / R3000A) recompiler — full integer, load/store, branches, coprocessors
-- ✅ VU (Vector Unit) recompiler — microVU skeleton + Upper FMAC vector ISA complete; Lower ISA and runtime complete
-- ✅ vtlb fast memory
-- ✅ Native ARM64 binary builds and boots the PS2 BIOS
-- ✅ 2D games are already playable
-- ✅ 3D games run
+- **Savegame Copying & Editor Tools**:
+  - **Copy & Transfer Savegames**: Seamlessly copy and transfer save files between memory cards, folders, and external storage.
+  - **Save Extraction & PSU Archive Support**: Pack and unpack standard EMS / PS2SaveBuilder `.psu` files and compressed `.zip` archives.
+  - **3D Save Icon Rendering**: Decodes PS2 `.icn` 16-bit RGB1555 texture data directly into high-resolution Android Bitmaps for save card thumbnails.
+  - **Shift-JIS & PS2 Japanese Title Decoding**: Converts CP932 / Shift-JIS / Full-width Japanese and Western titles from `icon.sys` into clean UTF-8 text.
+  - **`icon.sys` Inspector**: View game titles, subtitles, 3D icon filenames, copy protection status, ambient/lighting direction vectors, and background colors.
+  - **Card Formatting**: Create and format fresh 8MB, 16MB, 32MB, 64MB, and 128MB memory cards with standard Sony PS2 geometry.
+  - **ECC Converter**: Convert between RAW (512B/page) and ECC (528B/page) formats.
+  - **Hex Inspector**: Built-in hex viewer to inspect any individual file or raw block bytes.
 
-### Why LLMs / AI Were Used
+- **Material You UI Design**:
+  - Dynamic Color theming on Android 12+ (SDK 31+) with retro PlayStation deep blue & cyan accents on Android 11 (SDK 30).
+  - Storage usage indicator bar with animated progress and free cluster diagnostics.
+  - Search by game title or directory ID (e.g. `BASLUS-21445`, `SLUS-20946`).
+  - Filter chips (All, PS2, PS1, Protected) and sorting (Name, Date, Size).
+  - Smooth bottom sheets and modal dialogs.
 
-A word on methodology:
+- **Targeted for Android 11 / SDK 30**:
+  - Full Storage Access Framework (SAF) integration for opening and exporting files seamlessly across internal storage, SD cards, and USB OTG drives.
 
-The x86-64 JIT code in upstream ARMSX2 is **already proven correct** — it has run thousands of PS2 titles for years. The challenge in this port is not emulator design or JIT theory; it is **mechanical translation** of a large, well-understood x86-64 assembly codebase into equivalent ARM64 assembly (via VIXL) while preserving the exact same register-allocation contracts, block lifecycle, and recompiler semantics.
+---
 
-Large language models (LLMs) were used as an **accelerant for this translation work** — pattern-matching x86 JIT boilerplate to ARM64 equivalents, scaffolding emit routines, and keeping the porting velocity high. The JIT *logic* (block compiler, dispatcher, analysis passes, flag pipelines, clamping rules, Tri-Ace hacks, etc.) is taken directly from the upstream x86 implementation and validated against it. **Nothing was hallucinated from scratch.**
+## Project Structure
 
-In other words: the hard engineering was done by the PCSX2 team over two decades. The hard *typing* — translating ~50k lines of x86 emitter code into ARM64 — is what AI helped compress.
+```
+├── .github/
+│   └── workflows/
+│       └── build.yml               # GitHub Actions CI with workflow_dispatch & push triggers
+├── app/
+│   ├── build.gradle.kts            # Configured for SDK 30 / Android 11 & Compose Material 3
+│   ├── proguard-rules.pro
+│   └── src/
+│       ├── main/
+│       │   ├── AndroidManifest.xml # Targets SDK 30, intent-filters for .ps2/.psu files
+│       │   ├── java/com/ps2/memcard/
+│       │   │   ├── core/           # Pure Kotlin PS2 Memory Card File System Engine
+│       │   │   │   ├── Ps2Memcard.kt          # Superblock, FAT, directory, cluster I/O
+│       │   │   │   ├── Ps2SuperBlock.kt       # Superblock layout, geometry, verification
+│       │   │   │   ├── Ps2DirectoryEntry.kt   # Directory entry flags, timestamps, metadata
+│       │   │   │   ├── Ps2Ecc.kt              # Parity table & Hamming ECC calculation
+│       │   │   │   ├── Ps2Save.kt             # High-level save folder representation
+│       │   │   │   ├── Ps2IconSys.kt          # icon.sys parser (titles, lighting, icons)
+│       │   │   │   ├── Ps2IconDecoder.kt      # 3D .icn texture decoder & bitmap renderer
+│       │   │   │   ├── Ps2ShiftJis.kt         # Shift-JIS & full-width text decoder
+│       │   │   │   ├── PsuHandler.kt          # PSU/EMS archive packer and unpacker
+│       │   │   │   ├── FolderMemcardHandler.kt# PCSX2 folder memory card converter
+│       │   │   │   └── MemcardFormatter.kt    # Formatting 8MB to 128MB cards
+│       │   │   └── ui/             # Jetpack Compose & Material You UI Layer
+│       │   │       ├── MainActivity.kt
+│       │   │       ├── MemcardViewModel.kt
+│       │   │       ├── theme/
+│       │   │       │   ├── Color.kt
+│       │   │       │   ├── Theme.kt
+│       │   │       │   └── Type.kt
+│       │   │       ├── components/
+│       │   │       │   ├── AppHeader.kt
+│       │   │       │   ├── SaveCard.kt
+│       │   │       │   ├── StorageBar.kt
+│       │   │       │   ├── SaveDetailModal.kt
+│       │   │       │   ├── CreateCardDialog.kt
+│       │   │       │   ├── FormatCardDialog.kt
+│       │   │       │   ├── CardStatsDialog.kt
+│       │   │       │   ├── ConvertCardDialog.kt
+│       │   │       │   └── HexViewerDialog.kt
+│       │   │       └── screens/
+│       │   │           ├── MainScreen.kt
+│       │   │           └── EmptyStateScreen.kt
+│       │   └── res/
+│       └── test/
+│           └── java/com/ps2/memcard/
+│               └── Ps2MemcardTest.kt
+├── reference/                      # Preserved C++ memory card source & filesystem docs
+│   ├── PS2-MemoryCardFileSystem.htm
+│   ├── MemoryCardFile.cpp
+│   ├── MemoryCardFolder.cpp
+│   └── MemoryCardProtocol.cpp
+├── gradle/
+│   └── libs.versions.toml
+├── build.gradle.kts
+├── settings.gradle.kts
+└── gradlew
+```
 
-## System Requirements
+---
 
-ARMSX2 targets ARM64 across desktop (macOS, Windows, Linux) and mobile (Android, iOS/iPadOS), all from the single shared core. Our [setup documentation page](https://pcsx2.net/docs/setup/requirements) contains additional details on software and hardware requirements.
+## Building with GitHub Actions
 
-Please note that a BIOS dump from a legitimately-owned PS2 console is required to use the emulator. For more information, visit [this page](https://pcsx2.net/docs/setup/bios/).
+The repository includes a GitHub Actions workflow configured for manual execution (`workflow_dispatch`) and automatic builds on pushes/pull requests.
 
-## Building
+To build manually:
+1. Go to the **Actions** tab on your GitHub repository.
+2. Select **Build PS2 Memory Card Editor APK**.
+3. Click **Run workflow**, choose your build type (`release` or `debug`), and click **Run workflow**.
+4. Once completed, download the generated APK from the **Artifacts** section!
 
-Check out our [github actions](https://github.com/ARMSX2/ARMSX2/actions/workflows/build-all.yml) for the latest build recipe
+---
+
+## Credits & Acknowledgements
+
+- **ARMSX2**: Special thanks to the **ARMSX2** project and team for their foundational work, mobile optimizations, and inspiration.
+- **PCSX2 Dev Team**: For the original SIO/Memcard implementation and folder memory card specifications.
+- **Ross Ridge**: For the PlayStation 2 Memory Card File System research, specifications, and `mymc` tool.
+
+---
+
+## License
+
+GPL-3.0+

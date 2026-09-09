@@ -1,3 +1,0 @@
-# PowerPlay
-
-TBD

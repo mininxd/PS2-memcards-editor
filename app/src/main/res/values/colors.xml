@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ps2_blue">#00439C</color>
+    <color name="ps2_blue_dark">#002255</color>
+    <color name="ps2_accent">#0070D1</color>
+    <color name="ps2_surface_dark">#121316</color>
+    <color name="ps2_surface_light">#F8F9FE</color>
+</resources>

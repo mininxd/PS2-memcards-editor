@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">PS2 Memcard Editor</string>
+    <string name="open_card">Open Card</string>
+    <string name="create_card">New Card</string>
+    <string name="format_card">Format Card</string>
+    <string name="convert_ecc">Convert ECC</string>
+    <string name="card_stats">Card Info</string>
+    <string name="save_backup">Backup Card</string>
+    <string name="import_save">Import Save</string>
+    <string name="export_psu">Export PSU</string>
+    <string name="export_zip">Export ZIP</string>
+    <string name="delete_save">Delete Save</string>
+    <string name="hex_viewer">Hex Inspector</string>
+    <string name="no_card_opened">No Memory Card Opened</string>
+    <string name="no_card_desc">Open an existing PS2 memory card image (.ps2, .mc2, .mcd, .raw, .bin, .vmc) or create a new one to get started.</string>
+</resources>
