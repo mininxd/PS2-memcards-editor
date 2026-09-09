@@ -439,10 +439,6 @@ class MainActivity : ComponentActivity() {
                                 pendingSaveCardName = name
                                 selectSaveDirectoryLauncher.launch(null)
                             }
-                        },
-                        onCreateInMemory = { name, size, ecc ->
-                            viewModel.setShowCreateDialog(false)
-                            viewModel.createNewCard(name, size, ecc)
                         }
                     )
                 }

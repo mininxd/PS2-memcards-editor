@@ -43,8 +43,7 @@ fun CreateCardDialog(
     customDirectoryName: String?,
     onSelectCustomDirectory: () -> Unit,
     onDismiss: () -> Unit,
-    onSaveCard: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit,
-    onCreateInMemory: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit
+    onSaveCard: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit
 ) {
     var cardName by remember { mutableStateOf("Mcd001.ps2") }
     var selectedSize by remember { mutableIntStateOf(8) }
@@ -194,19 +193,8 @@ fun CreateCardDialog(
             }
         },
         dismissButton = {
-            Row {
-                TextButton(
-                    onClick = {
-                        if (cardName.isNotBlank()) {
-                            onCreateInMemory(cardName.trim(), selectedSize, useEcc)
-                        }
-                    }
-                ) {
-                    Text("In-Memory")
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
-                }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )
