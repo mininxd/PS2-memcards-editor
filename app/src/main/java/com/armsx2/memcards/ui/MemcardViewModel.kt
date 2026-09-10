@@ -72,9 +72,6 @@ class MemcardViewModel : ViewModel() {
     private val _showStatsDialog = MutableStateFlow(false)
     val showStatsDialog: StateFlow<Boolean> = _showStatsDialog.asStateFlow()
 
-    private val _showConvertDialog = MutableStateFlow(false)
-    val showConvertDialog: StateFlow<Boolean> = _showConvertDialog.asStateFlow()
-
     private val _hexViewerData = MutableStateFlow<Pair<String, ByteArray>?>(null)
     val hexViewerData: StateFlow<Pair<String, ByteArray>?> = _hexViewerData.asStateFlow()
 
@@ -135,10 +132,6 @@ class MemcardViewModel : ViewModel() {
 
     fun setShowStatsDialog(show: Boolean) {
         _showStatsDialog.value = show
-    }
-
-    fun setShowConvertDialog(show: Boolean) {
-        _showConvertDialog.value = show
     }
 
     fun openHexViewer(title: String, data: ByteArray) {
@@ -323,34 +316,7 @@ class MemcardViewModel : ViewModel() {
         return bos.toByteArray()
     }
 
-    fun convertEcc(targetHasEcc: Boolean) {
-        val current = _uiState.value as? CardUiState.Loaded ?: return
-        viewModelScope.launch {
-            _uiState.value = CardUiState.Loading("Converting card ECC...")
-            withContext(Dispatchers.Default) {
-                try {
-                    val newBytes = current.memcard.convertEcc(targetHasEcc)
-                    val card = Ps2Memcard.open(newBytes)
-                    if (card != null) {
-                        val saves = card.listSaves()
-                        val stats = card.getStats()
-                        _hasUnsavedChanges.value = true
-                        _uiState.value = CardUiState.Loaded(
-                            cardName = current.cardName,
-                            cardUri = current.cardUri,
-                            memcard = card,
-                            saves = saves,
-                            stats = stats
-                        )
-                        _snackbarMessage.value = if (targetHasEcc) "Converted to ECC (528B/page)" else "Converted to RAW (512B/page)"
-                    }
-                } catch (e: Exception) {
-                    _uiState.value = current
-                    _snackbarMessage.value = "Conversion error: ${e.message}"
-                }
-            }
-        }
-    }
+
 
     fun closeCard() {
         _uiState.value = CardUiState.Empty

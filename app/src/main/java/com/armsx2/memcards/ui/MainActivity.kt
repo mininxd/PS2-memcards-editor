@@ -46,7 +46,6 @@ import com.armsx2.memcards.core.MemcardFormatter
 import com.armsx2.memcards.core.Ps2Save
 import com.armsx2.memcards.ui.components.AppHeader
 import com.armsx2.memcards.ui.components.CardStatsDialog
-import com.armsx2.memcards.ui.components.ConvertCardDialog
 import com.armsx2.memcards.ui.components.CreateCardDialog
 import com.armsx2.memcards.ui.components.FormatCardDialog
 import com.armsx2.memcards.ui.components.HexViewerDialog
@@ -230,7 +229,6 @@ class MainActivity : ComponentActivity() {
                 val showCreateDialog by viewModel.showCreateDialog.collectAsState()
                 val showFormatDialog by viewModel.showFormatDialog.collectAsState()
                 val showStatsDialog by viewModel.showStatsDialog.collectAsState()
-                val showConvertDialog by viewModel.showConvertDialog.collectAsState()
                 val hexViewerData by viewModel.hexViewerData.collectAsState()
                 val snackbarMessage by viewModel.snackbarMessage.collectAsState()
                 val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsState()
@@ -314,8 +312,7 @@ class MainActivity : ComponentActivity() {
                             onSaveCard = { triggerSaveCurrentCard() },
                             onSaveCardAs = { triggerSaveCardAs() },
                             onFormatCard = { viewModel.setShowFormatDialog(true) },
-                            onShowStats = { viewModel.setShowStatsDialog(true) },
-                            onShowConvert = { viewModel.setShowConvertDialog(true) }
+                            onShowStats = { viewModel.setShowStatsDialog(true) }
                         )
                     },
                     snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -478,19 +475,6 @@ class MainActivity : ComponentActivity() {
                             superBlock = loaded.memcard.superBlock,
                             stats = loaded.stats,
                             onDismiss = { viewModel.setShowStatsDialog(false) }
-                        )
-                    }
-                }
-
-                if (showConvertDialog) {
-                    (uiState as? CardUiState.Loaded)?.let { loaded ->
-                        ConvertCardDialog(
-                            currentHasEcc = loaded.memcard.hasEcc,
-                            onDismiss = { viewModel.setShowConvertDialog(false) },
-                            onConfirmConvert = { targetHasEcc ->
-                                viewModel.setShowConvertDialog(false)
-                                viewModel.convertEcc(targetHasEcc)
-                            }
                         )
                     }
                 }

@@ -98,7 +98,7 @@ fun EmptyStateScreen(
 
         ActionCard(
             title = "Create New Card",
-            subtitle = "Format a blank 8MB - 128MB memory card with ECC or RAW",
+            subtitle = "Create a standard 8MB - 128MB .ps2 memory card with ECC",
             icon = Icons.Default.Add,
             containerColor = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,

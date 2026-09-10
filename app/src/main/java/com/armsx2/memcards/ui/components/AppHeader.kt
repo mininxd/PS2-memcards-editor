@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SaveAs
-import androidx.compose.material.icons.filled.Transform
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -47,7 +46,6 @@ fun AppHeader(
     onSaveCardAs: () -> Unit,
     onFormatCard: () -> Unit,
     onShowStats: () -> Unit,
-    onShowConvert: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -152,14 +150,6 @@ fun AppHeader(
                         onClick = {
                             menuExpanded = false
                             onShowStats()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Convert ECC Format") },
-                        leadingIcon = { Icon(Icons.Default.Transform, null) },
-                        onClick = {
-                            menuExpanded = false
-                            onShowConvert()
                         }
                     )
                     DropdownMenuItem(

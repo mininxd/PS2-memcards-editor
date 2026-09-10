@@ -28,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,7 +52,6 @@ fun CreateCardDialog(
     var cardName by remember { mutableStateOf("mcd001.ps2") }
     var selectedSize by remember { mutableIntStateOf(8) }
     var isPreformatted by remember { mutableStateOf(false) } // Default: standard unformatted (matching PCSX2/armsx2)
-    var useEcc by remember { mutableStateOf(true) }
 
     val sizes = listOf(8, 16, 32, 64, 128)
 
@@ -144,51 +142,7 @@ fun CreateCardDialog(
                     modifier = Modifier.padding(top = 4.dp)
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            val newEcc = !useEcc
-                            useEcc = newEcc
-                            if (!newEcc && cardName.endsWith(".ps2", ignoreCase = true)) {
-                                cardName = cardName.removeSuffix(".ps2") + ".bin"
-                            } else if (newEcc && (cardName.endsWith(".bin", ignoreCase = true) || cardName.endsWith(".mc2", ignoreCase = true))) {
-                                val base = cardName.substringBeforeLast(".")
-                                cardName = "$base.ps2"
-                            }
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Include ECC (Recommended for .ps2)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (useEcc) "528 B/page (Standard PCSX2 & ARMSX2 .ps2)" else "512 B/page (RAW .bin / .mc2 format)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
-                    Switch(
-                        checked = useEcc,
-                        onCheckedChange = { checked ->
-                            useEcc = checked
-                            if (!checked && cardName.endsWith(".ps2", ignoreCase = true)) {
-                                cardName = cardName.removeSuffix(".ps2") + ".bin"
-                            } else if (checked && (cardName.endsWith(".bin", ignoreCase = true) || cardName.endsWith(".mc2", ignoreCase = true))) {
-                                val base = cardName.substringBeforeLast(".")
-                                cardName = "$base.ps2"
-                            }
-                        }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Custom Directory Selection
                 Surface(
@@ -248,7 +202,7 @@ fun CreateCardDialog(
             Button(
                 onClick = {
                     if (cardName.isNotBlank()) {
-                        onSaveCard(cardName.trim(), selectedSize, useEcc, isPreformatted)
+                        onSaveCard(cardName.trim(), selectedSize, true, isPreformatted)
                     }
                 },
                 shape = RoundedCornerShape(12.dp)
