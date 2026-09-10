@@ -110,9 +110,17 @@ fun SaveCard(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
+                val titleText = remember(save.displayTitle, save.displaySubtitle) {
+                    if (save.displaySubtitle.isNotBlank()) {
+                        "${save.displayTitle} • ${save.displaySubtitle}"
+                    } else {
+                        save.displayTitle
+                    }
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = save.displayTitle,
+                        text = titleText,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -141,17 +149,7 @@ fun SaveCard(
                     }
                 }
 
-                if (save.displaySubtitle.isNotBlank()) {
-                    Text(
-                        text = save.displaySubtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -159,12 +157,15 @@ fun SaveCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.weight(1f, fill = false)
                     ) {
                         Text(
                             text = save.directoryName,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
@@ -173,7 +174,9 @@ fun SaveCard(
                         text = "${save.sizeInKb} KB",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        softWrap = false
                     )
 
                     Text(
@@ -185,7 +188,9 @@ fun SaveCard(
                     Text(
                         text = save.modifiedDate.split(" ").firstOrNull() ?: save.modifiedDate,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
