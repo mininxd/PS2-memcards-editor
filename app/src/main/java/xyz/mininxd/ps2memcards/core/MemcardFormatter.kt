@@ -113,38 +113,39 @@ object MemcardFormatter {
         // Flash memory begins in erased state (0xFF)
         java.util.Arrays.fill(outData, 0xFF.toByte())
 
-        fun writePage(pageIndex: Int, pageData: ByteArray) {
+        fun writePage(pageIndex: Int, pageData: ByteArray, pageDataOffset: Int = 0) {
             val offset = pageIndex * rawPageSize
-            System.arraycopy(pageData, 0, outData, offset, 512)
+            val len = minOf(512, pageData.size - pageDataOffset)
+            if (len > 0) {
+                System.arraycopy(pageData, pageDataOffset, outData, offset, len)
+            }
+            if (len < 512) {
+                java.util.Arrays.fill(outData, offset + len, offset + 512, 0.toByte())
+            }
             if (useEcc) {
-                val spare = Ps2Ecc.generateSpareArea(pageData)
-                System.arraycopy(spare, 0, outData, offset + 512, 16)
+                Ps2Ecc.writeSpareArea(outData, offset, outData, offset + 512)
             }
         }
 
-        fun writeCluster(clusterIndex: Long, clusterData: ByteArray) {
+        fun writeCluster(clusterIndex: Long, clusterData: ByteArray, clusterDataOffset: Int = 0) {
             val startPage = (clusterIndex * pagesPerCluster).toInt()
             for (p in 0 until pagesPerCluster) {
-                val pData = ByteArray(512)
-                val srcPos = p * 512
+                val srcPos = clusterDataOffset + p * 512
                 if (srcPos < clusterData.size) {
-                    val len = minOf(512, clusterData.size - srcPos)
-                    System.arraycopy(clusterData, srcPos, pData, 0, len)
+                    writePage(startPage + p, clusterData, srcPos)
                 }
-                writePage(startPage + p, pData)
             }
         }
 
         // 1. Write Superblock at Page 0
-        val sbPage = ByteArray(512)
         val sbBytes = superBlock.toByteArray()
-        System.arraycopy(sbBytes, 0, sbPage, 0, sbBytes.size)
-        writePage(0, sbPage)
+        writePage(0, sbBytes, 0)
 
         // 2. Write Indirect FAT Clusters
         var currentFatCluster = fatClusterStart.toInt()
+        val ifcBuf = ByteBuffer.allocate(clusterSize).order(ByteOrder.LITTLE_ENDIAN)
         for (i in 0 until indirectClusters) {
-            val ifcBuf = ByteBuffer.allocate(clusterSize).order(ByteOrder.LITTLE_ENDIAN)
+            ifcBuf.clear()
             for (j in 0 until epc) {
                 if (currentFatCluster < allocOffset) {
                     ifcBuf.putInt(currentFatCluster++)
@@ -167,9 +168,7 @@ object MemcardFormatter {
         }
         val fatBytes = fatBuf.array()
         for (i in 0 until fatClusters) {
-            val cData = ByteArray(clusterSize)
-            System.arraycopy(fatBytes, i * clusterSize, cData, 0, clusterSize)
-            writeCluster(fatClusterStart + i, cData)
+            writeCluster(fatClusterStart + i, fatBytes, i * clusterSize)
         }
 
         // 4. Write Root Directory at cluster allocOffset
@@ -200,8 +199,8 @@ object MemcardFormatter {
         )
         val rootDotPage = rootDot.toByteArray()
         val rootDotDotPage = rootDotDot.toByteArray()
-        writePage((allocOffset * pagesPerCluster).toInt(), rootDotPage)
-        writePage((allocOffset * pagesPerCluster + 1).toInt(), rootDotDotPage)
+        writePage((allocOffset * pagesPerCluster).toInt(), rootDotPage, 0)
+        writePage((allocOffset * pagesPerCluster + 1).toInt(), rootDotDotPage, 0)
 
         // All other clusters (unused clusters 1..7, allocatable clusters 42..8134,
         // reserved clusters, and backup blocks 1 and 2) remain cleanly in erased state (0xFF)

@@ -40,6 +40,11 @@ class Ps2Memcard private constructor(
     }
 
     /**
+     * Returns direct reference to underlying rawData without allocating a copy.
+     */
+    fun getRawDataDirect(): ByteArray = rawData
+
+    /**
      * Writes a single 512-byte page to the card (automatically updates ECC if needed).
      */
     fun writePage(pageIndex: Int, pageData: ByteArray) {
@@ -50,8 +55,7 @@ class Ps2Memcard private constructor(
             if (offset >= 0 && offset + 528L <= rawData.size) {
                 val len = minOf(pageData.size, 512)
                 System.arraycopy(pageData, 0, rawData, offset.toInt(), len)
-                val spare = Ps2Ecc.generateSpareArea(pageData)
-                System.arraycopy(spare, 0, rawData, (offset + 512L).toInt(), 16)
+                Ps2Ecc.writeSpareArea(rawData, offset.toInt(), rawData, (offset + 512L).toInt())
             }
         } else {
             val offset = pageIndex.toLong() * 512L
@@ -1167,9 +1171,8 @@ class Ps2Memcard private constructor(
         fun open(data: ByteArray): Ps2Memcard? {
             if (data.size < Ps2SuperBlock.SUPERBLOCK_SIZE) return null
 
-            // First, attempt to parse SuperBlock directly or search for magic if image has a prepended header
-            var workingData = data
-            var sb = Ps2SuperBlock.parse(workingData)
+            var cardData = data
+            var sb = Ps2SuperBlock.parse(cardData, 0)
 
             if (sb == null) {
                 val magicBytes = Ps2SuperBlock.MAGIC_STRING.toByteArray(Charsets.US_ASCII)
@@ -1189,8 +1192,10 @@ class Ps2Memcard private constructor(
                     }
                 }
                 if (foundOffset > 0) {
-                    workingData = data.copyOfRange(foundOffset, data.size)
-                    sb = Ps2SuperBlock.parse(workingData)
+                    sb = Ps2SuperBlock.parse(data, foundOffset)
+                    if (sb != null) {
+                        cardData = data.copyOfRange(foundOffset, data.size)
+                    }
                 }
             }
 
@@ -1202,16 +1207,16 @@ class Ps2Memcard private constructor(
                 val expectedRawSize = totalPages * 512L
 
                 hasEcc = when {
-                    totalPages > 0 && workingData.size.toLong() == expectedEccSize -> true
-                    totalPages > 0 && workingData.size.toLong() == expectedRawSize -> false
-                    workingData.size % 528 == 0 && workingData.size % 512 != 0 -> true
-                    workingData.size % 512 == 0 && workingData.size % 528 != 0 -> false
+                    totalPages > 0 && cardData.size.toLong() == expectedEccSize -> true
+                    totalPages > 0 && cardData.size.toLong() == expectedRawSize -> false
+                    cardData.size % 528 == 0 && cardData.size % 512 != 0 -> true
+                    cardData.size % 512 == 0 && cardData.size % 528 != 0 -> false
                     else -> {
-                        if (workingData.size >= 528) {
-                            val computed = Ps2Ecc.generateSpareArea(workingData, 0)
+                        if (cardData.size >= 528) {
+                            val computed = Ps2Ecc.generateSpareArea(cardData, 0)
                             var matches = true
                             for (b in 0 until 12) {
-                                if (workingData[512 + b] != computed[b]) {
+                                if (cardData[512 + b] != computed[b]) {
                                     matches = false
                                     break
                                 }
@@ -1222,21 +1227,11 @@ class Ps2Memcard private constructor(
                         }
                     }
                 }
-            } else if (workingData.size % 528 == 0) {
-                // If direct parse failed but size is divisible by 528, try converting ECC to raw
-                try {
-                    val raw = Ps2Ecc.convertEccToRaw(workingData)
-                    sb = Ps2SuperBlock.parse(raw)
-                    if (sb != null) {
-                        hasEcc = true
-                    }
-                } catch (_: Exception) {
-                }
             }
 
             if (sb == null || hasEcc == null) {
                 // Detect unformatted memory card images (e.g. PCSX2 / ARMSX2 standard erase state filled with 0xFF)
-                val size = workingData.size
+                val size = cardData.size
                 val isEccCandidate = (size % 528 == 0) && (size >= 8 * 1024 * 528 * 2)
                 val isRawCandidate = (size % 512 == 0) && (size >= 8 * 1024 * 512 * 2)
 
@@ -1246,13 +1241,13 @@ class Ps2Memcard private constructor(
                     val totalPages = size / pageSize
                     val totalClusters = (totalPages / 2).toLong()
                     val unformattedSb = Ps2SuperBlock.createUnformatted(totalClusters, detectedEcc)
-                    return Ps2Memcard(workingData, hasEcc = detectedEcc, superBlock = unformattedSb)
+                    return Ps2Memcard(cardData, hasEcc = detectedEcc, superBlock = unformattedSb)
                 }
 
                 return null
             }
 
-            val card = Ps2Memcard(workingData, hasEcc = hasEcc, superBlock = sb)
+            val card = Ps2Memcard(cardData, hasEcc = hasEcc, superBlock = sb)
             card.loadFatFromCard()
             return card
         }

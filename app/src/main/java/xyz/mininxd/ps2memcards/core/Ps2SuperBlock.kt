@@ -127,9 +127,9 @@ data class Ps2SuperBlock(
         const val MAGIC_STRING = "Sony PS2 Memory Card Format "
         const val SUPERBLOCK_SIZE = 340
 
-        fun parse(data: ByteArray): Ps2SuperBlock? {
-            if (data.size < SUPERBLOCK_SIZE) return null
-            val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+        fun parse(data: ByteArray, offset: Int = 0): Ps2SuperBlock? {
+            if (offset < 0 || data.size - offset < SUPERBLOCK_SIZE) return null
+            val buf = ByteBuffer.wrap(data, offset, SUPERBLOCK_SIZE).order(ByteOrder.LITTLE_ENDIAN)
 
             val magicBytes = ByteArray(28)
             buf.get(magicBytes)
@@ -139,12 +139,12 @@ data class Ps2SuperBlock(
                 return null
             }
 
-            buf.position(0x1C)
+            buf.position(offset + 0x1C)
             val verBytes = ByteArray(12)
             buf.get(verBytes)
             val version = String(verBytes, Charsets.US_ASCII).trimEnd('\u0000')
 
-            buf.position(0x28)
+            buf.position(offset + 0x28)
             val pageLen = buf.short.toInt() and 0xFFFF
             val pagesPerCluster = buf.short.toInt() and 0xFFFF
             val pagesPerBlock = buf.short.toInt() and 0xFFFF
@@ -157,19 +157,19 @@ data class Ps2SuperBlock(
             val backupBlock1 = buf.int.toLong() and 0xFFFFFFFFL
             val backupBlock2 = buf.int.toLong() and 0xFFFFFFFFL
 
-            buf.position(0x50)
+            buf.position(offset + 0x50)
             val ifcList = IntArray(32)
             for (i in 0 until 32) {
                 ifcList[i] = buf.int
             }
 
-            buf.position(0xD0)
+            buf.position(offset + 0xD0)
             val badBlockList = IntArray(32)
             for (i in 0 until 32) {
                 badBlockList[i] = buf.int
             }
 
-            buf.position(0x150)
+            buf.position(offset + 0x150)
             val cardType = buf.get().toInt() and 0xFF
             val cardFlags = buf.get().toInt() and 0xFF
 
@@ -194,6 +194,12 @@ data class Ps2SuperBlock(
 
         fun createUnformatted(clustersPerCard: Long, hasEcc: Boolean): Ps2SuperBlock {
             val totalBlocks = clustersPerCard / 8
+            val epc = 256
+            val allocatableClustersEst = maxOf(0L, clustersPerCard - 10)
+            val fatClusters = (allocatableClustersEst + epc - 1) / epc
+            val indirectClusters = minOf(32L, (fatClusters + epc - 1) / epc)
+            val allocOffset = 8L + indirectClusters + fatClusters
+            val allocEnd = maxOf(0L, (totalBlocks - 2) * 8 - allocOffset)
             return Ps2SuperBlock(
                 magic = "",
                 version = "",
@@ -201,8 +207,8 @@ data class Ps2SuperBlock(
                 pagesPerCluster = 2,
                 pagesPerBlock = 16,
                 clustersPerCard = clustersPerCard,
-                allocOffset = 41L,
-                allocEnd = maxOf(0L, (totalBlocks - 2) * 8 - 41L),
+                allocOffset = allocOffset,
+                allocEnd = allocEnd,
                 rootdirCluster = 0L,
                 backupBlock1 = maxOf(0L, totalBlocks - 1),
                 backupBlock2 = maxOf(0L, totalBlocks - 2),

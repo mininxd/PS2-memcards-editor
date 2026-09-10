@@ -58,14 +58,24 @@ object Ps2Ecc {
      */
     fun generateSpareArea(pageData: ByteArray, offset: Int = 0): ByteArray {
         val spare = ByteArray(16)
-        for (j in 0 until 4) {
-            val ecc = calculateEcc(pageData, offset + j * 128)
-            spare[j * 3] = (ecc and 0xFF).toByte()
-            spare[j * 3 + 1] = ((ecc shr 8) and 0xFF).toByte()
-            spare[j * 3 + 2] = ((ecc shr 16) and 0xFF).toByte()
-        }
-        // trailing 4 null bytes are already 0
+        writeSpareArea(pageData, offset, spare, 0)
         return spare
+    }
+
+    /**
+     * Writes 16-byte spare area (ECC + padding) directly into an existing buffer without allocating.
+     */
+    fun writeSpareArea(pageData: ByteArray, pageOffset: Int, outSpare: ByteArray, spareOffset: Int) {
+        for (j in 0 until 4) {
+            val ecc = calculateEcc(pageData, pageOffset + j * 128)
+            outSpare[spareOffset + j * 3] = (ecc and 0xFF).toByte()
+            outSpare[spareOffset + j * 3 + 1] = ((ecc shr 8) and 0xFF).toByte()
+            outSpare[spareOffset + j * 3 + 2] = ((ecc shr 16) and 0xFF).toByte()
+        }
+        outSpare[spareOffset + 12] = 0
+        outSpare[spareOffset + 13] = 0
+        outSpare[spareOffset + 14] = 0
+        outSpare[spareOffset + 15] = 0
     }
 
     /**

@@ -101,9 +101,23 @@ class MemcardViewModel : ViewModel() {
         )
     }
 
+    fun setLoading(message: String) {
+        _uiState.value = CardUiState.Loading(message)
+    }
+
+    fun setError(message: String) {
+        _uiState.value = CardUiState.Error(message)
+    }
+
+    fun clearLoading() {
+        if (_uiState.value is CardUiState.Loading) {
+            _uiState.value = CardUiState.Empty
+        }
+    }
+
     fun getRawCardData(): ByteArray? {
         val current = _uiState.value as? CardUiState.Loaded ?: return null
-        return current.memcard.toByteArray()
+        return current.memcard.getRawDataDirect()
     }
 
     fun setSearchQuery(query: String) {
@@ -172,8 +186,8 @@ class MemcardViewModel : ViewModel() {
                     } else {
                         _uiState.value = CardUiState.Error("Invalid PS2 Memory Card image format.")
                     }
-                } catch (e: Exception) {
-                    _uiState.value = CardUiState.Error("Failed to open card: ${e.message}")
+                } catch (t: Throwable) {
+                    _uiState.value = CardUiState.Error("Failed to open card: ${t.message ?: "Out of memory"}")
                 }
             }
         }
@@ -200,8 +214,8 @@ class MemcardViewModel : ViewModel() {
                     } else {
                         _uiState.value = CardUiState.Error("Invalid PS2 Memory Card image format.")
                     }
-                } catch (e: Exception) {
-                    _uiState.value = CardUiState.Error("Failed to open card: ${e.message}")
+                } catch (t: Throwable) {
+                    _uiState.value = CardUiState.Error("Failed to open card: ${t.message ?: "Out of memory"}")
                 }
             }
         }
@@ -233,8 +247,8 @@ class MemcardViewModel : ViewModel() {
                     } else {
                         _uiState.value = CardUiState.Error("Failed to initialize memory card.")
                     }
-                } catch (e: Exception) {
-                    _uiState.value = CardUiState.Error("Creation error: ${e.message}")
+                } catch (t: Throwable) {
+                    _uiState.value = CardUiState.Error("Creation error: ${t.message ?: "Out of memory"}")
                 }
             }
         }
@@ -260,8 +274,8 @@ class MemcardViewModel : ViewModel() {
                         )
                         _snackbarMessage.value = "Memory card formatted successfully."
                     }
-                } catch (e: Exception) {
-                    _uiState.value = CardUiState.Error("Format error: ${e.message}")
+                } catch (t: Throwable) {
+                    _uiState.value = CardUiState.Error("Format error: ${t.message ?: "Out of memory"}")
                 }
             }
         }

@@ -42,6 +42,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import xyz.mininxd.ps2memcards.core.MemcardFormatter
 import xyz.mininxd.ps2memcards.core.Ps2Save
 import xyz.mininxd.ps2memcards.ui.components.AppHeader
@@ -54,6 +58,13 @@ import xyz.mininxd.ps2memcards.ui.screens.EmptyStateScreen
 import xyz.mininxd.ps2memcards.ui.screens.MainScreen
 import xyz.mininxd.ps2memcards.ui.theme.PS2MemcardTheme
 
+private data class PendingCreateCard(
+    val name: String,
+    val sizeInMB: Int,
+    val useEcc: Boolean,
+    val isFormatted: Boolean
+)
+
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MemcardViewModel by viewModels()
@@ -61,8 +72,7 @@ class MainActivity : ComponentActivity() {
     private var pendingExportPsuBytes: ByteArray? = null
     private var pendingExportMaxBytes: ByteArray? = null
     private var pendingExportZipBytes: ByteArray? = null
-    private var pendingSaveCardBytes: ByteArray? = null
-    private var pendingSaveCardName: String? = null
+    private var pendingCreateCard: PendingCreateCard? = null
     private var pendingActionAfterSave: (() -> Unit)? = null
 
     private val snackbarHostState = SnackbarHostState()
@@ -86,8 +96,7 @@ class MainActivity : ComponentActivity() {
 
     private val selectSaveDirectoryLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri == null) {
-            pendingSaveCardBytes = null
-            pendingSaveCardName = null
+            pendingCreateCard = null
             pendingActionAfterSave = null
             return@registerForActivityResult
         }
@@ -108,37 +117,92 @@ class MainActivity : ComponentActivity() {
             .apply()
         viewModel.setCustomDirectory(uri, dirName)
 
-        val bytes = pendingSaveCardBytes ?: viewModel.getRawCardData()
-        val cardName = pendingSaveCardName ?: (viewModel.uiState.value as? CardUiState.Loaded)?.cardName ?: "mcd001.ps2"
+        val createParams = pendingCreateCard
+        if (createParams != null) {
+            pendingCreateCard = null
+            createAndSaveCard(uri, createParams.name, createParams.sizeInMB, createParams.useEcc, createParams.isFormatted)
+            return@registerForActivityResult
+        }
 
-        if (bytes != null) {
-            try {
-                val targetFile = docDir?.findFile(cardName) ?: docDir?.createFile("application/octet-stream", cardName)
-                if (targetFile != null) {
+        saveLoadedCardToDirectory(uri, dirName)
+    }
+
+    private fun createAndSaveCard(dirUri: Uri, name: String, sizeInMB: Int, useEcc: Boolean, formatted: Boolean) {
+        lifecycleScope.launch {
+            viewModel.setLoading("Creating $name (${sizeInMB}MB)...")
+            withContext(Dispatchers.IO) {
+                try {
+                    val tree = DocumentFile.fromTreeUri(this@MainActivity, dirUri)
+                    val targetFile = tree?.findFile(name) ?: tree?.createFile("application/octet-stream", name)
+                    if (targetFile == null) {
+                        withContext(Dispatchers.Main) {
+                            showToast("Could not create file in selected directory", isLong = true)
+                            viewModel.clearLoading()
+                        }
+                        return@withContext
+                    }
+
+                    val bytes = if (formatted) {
+                        MemcardFormatter.format(sizeInMB, useEcc)
+                    } else {
+                        MemcardFormatter.createUnformatted(sizeInMB, useEcc)
+                    }
+
                     contentResolver.openOutputStream(targetFile.uri, "wt")?.use { out ->
                         out.write(bytes)
                     }
-                    val currentState = viewModel.uiState.value
-                    if (currentState is CardUiState.Loaded) {
-                        viewModel.markCardSaved(targetFile.uri, cardName)
-                    } else {
-                        viewModel.loadCardFromBytes(cardName, bytes, targetFile.uri)
+
+                    withContext(Dispatchers.Main) {
+                        viewModel.loadCardFromBytes(name, bytes, targetFile.uri)
+                        showToast("Created and saved $name successfully!")
                     }
-                    showToast("Saved $cardName to $dirName successfully!")
-                    val action = pendingActionAfterSave
-                    pendingActionAfterSave = null
-                    action?.invoke()
-                } else {
-                    showToast("Could not create $cardName in $dirName", isLong = true)
-                    pendingActionAfterSave = null
+                } catch (t: Throwable) {
+                    withContext(Dispatchers.Main) {
+                        showToast("Failed to create card: ${t.message ?: "Out of memory"}", isLong = true)
+                        viewModel.setError("Failed to create card: ${t.message ?: "Out of memory"}")
+                    }
                 }
-            } catch (e: Exception) {
-                showToast("Failed to save card: ${e.message}", isLong = true)
-                pendingActionAfterSave = null
             }
         }
-        pendingSaveCardBytes = null
-        pendingSaveCardName = null
+    }
+
+    private fun saveLoadedCardToDirectory(dirUri: Uri, dirName: String) {
+        val loaded = viewModel.uiState.value as? CardUiState.Loaded ?: return
+        val rawData = loaded.memcard.getRawDataDirect()
+        val cardName = loaded.cardName
+        lifecycleScope.launch {
+            viewModel.setLoading("Saving $cardName...")
+            withContext(Dispatchers.IO) {
+                try {
+                    val docDir = DocumentFile.fromTreeUri(this@MainActivity, dirUri)
+                    val targetFile = docDir?.findFile(cardName) ?: docDir?.createFile("application/octet-stream", cardName)
+                    if (targetFile != null) {
+                        contentResolver.openOutputStream(targetFile.uri, "wt")?.use { out ->
+                            out.write(rawData)
+                        }
+                        withContext(Dispatchers.Main) {
+                            viewModel.markCardSaved(targetFile.uri, cardName)
+                            showToast("Saved $cardName to $dirName successfully!")
+                            val action = pendingActionAfterSave
+                            pendingActionAfterSave = null
+                            action?.invoke()
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            showToast("Could not create $cardName in $dirName", isLong = true)
+                            pendingActionAfterSave = null
+                            viewModel.clearLoading()
+                        }
+                    }
+                } catch (t: Throwable) {
+                    withContext(Dispatchers.Main) {
+                        showToast("Failed to save card: ${t.message ?: "Error"}", isLong = true)
+                        pendingActionAfterSave = null
+                        viewModel.clearLoading()
+                    }
+                }
+            }
+        }
     }
 
     private val importSaveLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -426,32 +490,11 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { viewModel.setShowCreateDialog(false) },
                         onSaveCard = { name, size, ecc, formatted ->
                             viewModel.setShowCreateDialog(false)
-                            val bytes = if (formatted) {
-                                MemcardFormatter.format(size, ecc)
-                            } else {
-                                MemcardFormatter.createUnformatted(size, ecc)
-                            }
                             val customDirUri = viewModel.customDirectoryUri.value
-                            var savedInDir = false
                             if (customDirUri != null) {
-                                try {
-                                    val tree = DocumentFile.fromTreeUri(this, customDirUri)
-                                    val targetFile = tree?.findFile(name) ?: tree?.createFile("application/octet-stream", name)
-                                    if (targetFile != null) {
-                                        contentResolver.openOutputStream(targetFile.uri, "wt")?.use { out ->
-                                            out.write(bytes)
-                                        }
-                                        viewModel.loadCardFromBytes(name, bytes, targetFile.uri)
-                                        showToast("Created and saved $name in custom directory!")
-                                        savedInDir = true
-                                    }
-                                } catch (e: Exception) {
-                                    showToast("Could not save to custom directory: ${e.message}", isLong = true)
-                                }
-                            }
-                            if (!savedInDir) {
-                                pendingSaveCardBytes = bytes
-                                pendingSaveCardName = name
+                                createAndSaveCard(customDirUri, name, size, ecc, formatted)
+                            } else {
+                                pendingCreateCard = PendingCreateCard(name, size, ecc, formatted)
                                 selectSaveDirectoryLauncher.launch(null)
                             }
                         }
@@ -500,43 +543,39 @@ class MainActivity : ComponentActivity() {
 
     private fun triggerSaveCurrentCard() {
         val loaded = viewModel.uiState.value as? CardUiState.Loaded ?: return
-        val bytes = viewModel.getRawCardData() ?: return
 
         // If card already has a file URI, save directly to it
         if (loaded.cardUri != null) {
-            try {
-                contentResolver.openOutputStream(loaded.cardUri, "wt")?.use { out ->
-                    out.write(bytes)
+            lifecycleScope.launch {
+                viewModel.setLoading("Saving ${loaded.cardName}...")
+                withContext(Dispatchers.IO) {
+                    try {
+                        contentResolver.openOutputStream(loaded.cardUri, "wt")?.use { out ->
+                            out.write(loaded.memcard.getRawDataDirect())
+                        }
+                        withContext(Dispatchers.Main) {
+                            viewModel.markCardSaved(loaded.cardUri, loaded.cardName)
+                            showToast("Saved ${loaded.cardName} successfully!")
+                            val action = pendingActionAfterSave
+                            pendingActionAfterSave = null
+                            action?.invoke()
+                        }
+                    } catch (t: Throwable) {
+                        withContext(Dispatchers.Main) {
+                            // If writing to original URI failed (e.g. permission lost), fall back to folder picker
+                            triggerSaveCardAs()
+                        }
+                    }
                 }
-                viewModel.markCardSaved(loaded.cardUri, loaded.cardName)
-                showToast("Saved ${loaded.cardName} successfully!")
-                val action = pendingActionAfterSave
-                pendingActionAfterSave = null
-                action?.invoke()
-                return
-            } catch (_: Exception) {
-                // If writing to original URI failed (e.g. permission lost), fall back to folder picker
             }
+            return
         }
 
         // If custom directory is set, save to that directory
         val customDirUri = viewModel.customDirectoryUri.value
         if (customDirUri != null) {
-            try {
-                val tree = DocumentFile.fromTreeUri(this, customDirUri)
-                val targetFile = tree?.findFile(loaded.cardName) ?: tree?.createFile("application/octet-stream", loaded.cardName)
-                if (targetFile != null) {
-                    contentResolver.openOutputStream(targetFile.uri, "wt")?.use { out ->
-                        out.write(bytes)
-                    }
-                    viewModel.markCardSaved(targetFile.uri, loaded.cardName)
-                    showToast("Saved ${loaded.cardName} to custom directory!")
-                    val action = pendingActionAfterSave
-                    pendingActionAfterSave = null
-                    action?.invoke()
-                    return
-                }
-            } catch (_: Exception) {}
+            saveLoadedCardToDirectory(customDirUri, viewModel.customDirectoryName.value ?: "Custom Directory")
+            return
         }
 
         // Otherwise prompt folder picker
@@ -544,11 +583,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun triggerSaveCardAs() {
-        val loaded = viewModel.uiState.value as? CardUiState.Loaded ?: return
-        val bytes = viewModel.getRawCardData() ?: return
-        pendingSaveCardBytes = bytes
-        pendingSaveCardName = loaded.cardName
-        selectSaveDirectoryLauncher.launch(null)
+        if (viewModel.uiState.value is CardUiState.Loaded) {
+            selectSaveDirectoryLauncher.launch(null)
+        }
     }
 
     private fun loadCardFromUri(uri: Uri) {
