@@ -309,6 +309,7 @@ class MainActivity : ComponentActivity() {
                 val snackbarMessage by viewModel.snackbarMessage.collectAsState()
                 val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsState()
                 val customDirectoryName by viewModel.customDirectoryName.collectAsState()
+                val updateStatus by viewModel.updateStatus.collectAsState()
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -403,7 +404,16 @@ class MainActivity : ComponentActivity() {
                             is CardUiState.Empty -> {
                                 EmptyStateScreen(
                                     onOpenCard = { openCardLauncher.launch(arrayOf("*/*")) },
-                                    onCreateCard = { viewModel.setShowCreateDialog(true) }
+                                    onCreateCard = { viewModel.setShowCreateDialog(true) },
+                                    updateStatus = updateStatus,
+                                    onCheckUpdate = {
+                                        val version = try {
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.1.2"
+                                        } catch (e: Exception) {
+                                            "1.1.2"
+                                        }
+                                        viewModel.checkUpdate(version)
+                                    }
                                 )
                             }
                             is CardUiState.Loading -> {

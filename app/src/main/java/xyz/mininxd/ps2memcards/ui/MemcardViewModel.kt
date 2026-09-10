@@ -10,6 +10,8 @@ import xyz.mininxd.ps2memcards.core.Ps2Memcard
 import xyz.mininxd.ps2memcards.core.Ps2Save
 import xyz.mininxd.ps2memcards.core.Ps2Timestamp
 import xyz.mininxd.ps2memcards.core.PsuHandler
+import xyz.mininxd.ps2memcards.core.UpdateChecker
+import xyz.mininxd.ps2memcards.core.UpdateStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -86,6 +88,17 @@ class MemcardViewModel : ViewModel() {
 
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
+
+    private val _updateStatus = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
+    val updateStatus: StateFlow<UpdateStatus> = _updateStatus.asStateFlow()
+
+    fun checkUpdate(currentVersion: String) {
+        viewModelScope.launch {
+            _updateStatus.value = UpdateStatus.Checking
+            val result = UpdateChecker.checkUpdate(currentVersion)
+            _updateStatus.value = result
+        }
+    }
 
     private var currentLoadedCard: CardUiState.Loaded? = null
 

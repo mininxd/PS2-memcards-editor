@@ -1,5 +1,7 @@
 package xyz.mininxd.ps2memcards.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,11 +18,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,13 +35,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import xyz.mininxd.ps2memcards.core.UpdateStatus
 
 @Composable
 fun EmptyStateScreen(
     onOpenCard: () -> Unit,
     onCreateCard: () -> Unit,
+    updateStatus: UpdateStatus = UpdateStatus.Idle,
+    onCheckUpdate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -104,6 +115,111 @@ fun EmptyStateScreen(
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             onClick = onCreateCard
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val context = LocalContext.current
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    if (updateStatus is UpdateStatus.UpdateAvailable) {
+                        val url = updateStatus.releaseUrl
+                        if (url.isNotBlank()) {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        }
+                    } else if (updateStatus !is UpdateStatus.Checking) {
+                        onCheckUpdate()
+                    }
+                },
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (updateStatus is UpdateStatus.UpdateAvailable) {
+                    MaterialTheme.colorScheme.tertiaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                }
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (updateStatus is UpdateStatus.Checking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        strokeWidth = 3.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (updateStatus is UpdateStatus.UpdateAvailable) {
+                            Icons.Default.Download
+                        } else {
+                            Icons.Default.SystemUpdate
+                        },
+                        contentDescription = "Check Update",
+                        modifier = Modifier.size(32.dp),
+                        tint = if (updateStatus is UpdateStatus.UpdateAvailable) {
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (updateStatus is UpdateStatus.UpdateAvailable) {
+                            "update available ${updateStatus.tagName}"
+                        } else {
+                            "Check Update"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (updateStatus is UpdateStatus.UpdateAvailable) {
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = when (updateStatus) {
+                            is UpdateStatus.Idle -> "Fetch latest releases from GitHub"
+                            is UpdateStatus.Checking -> "Connecting to GitHub..."
+                            is UpdateStatus.UpdateAvailable -> "Tap to open and download on GitHub"
+                            is UpdateStatus.UpToDate -> "You're on the latest version (v${updateStatus.currentVersion})"
+                            is UpdateStatus.Error -> "Error: ${updateStatus.message}. Tap to retry."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (updateStatus is UpdateStatus.UpdateAvailable) {
+                            MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.85f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+                        }
+                    )
+                }
+
+                if (updateStatus is UpdateStatus.UpdateAvailable) {
+                    IconButton(onClick = onCheckUpdate) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Check Again",
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
     }
