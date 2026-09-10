@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,20 +55,20 @@ fun AppHeader(
     TopAppBar(
         modifier = modifier,
         title = {
-            Column {
+            if (cardName != null) {
+                Text(
+                    text = if (hasUnsavedChanges || isInMemoryOnly) "$cardName *" else cardName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
                 Text(
                     text = "PS2 Memcard Editor",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                if (cardName != null) {
-                    Text(
-                        text = if (hasUnsavedChanges || isInMemoryOnly) "$cardName *" else cardName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (hasUnsavedChanges || isInMemoryOnly) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

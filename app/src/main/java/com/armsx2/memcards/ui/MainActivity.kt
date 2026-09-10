@@ -66,6 +66,21 @@ class MainActivity : ComponentActivity() {
     private var pendingSaveCardName: String? = null
     private var pendingActionAfterSave: (() -> Unit)? = null
 
+    private val snackbarHostState = SnackbarHostState()
+
+    /**
+     * Shows a Toast message only when no bottom UI is currently popped up (such as a
+     * ModalBottomSheet or an active Snackbar).
+     */
+    private fun showToast(message: String, isLong: Boolean = false) {
+        val isBottomUiPopped = (viewModel.selectedSave.value != null) ||
+                               (snackbarHostState.currentSnackbarData != null)
+        if (isBottomUiPopped) {
+            return
+        }
+        Toast.makeText(this, message, if (isLong) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
+    }
+
     private val openCardLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { loadCardFromUri(it) }
     }
@@ -110,16 +125,16 @@ class MainActivity : ComponentActivity() {
                     } else {
                         viewModel.loadCardFromBytes(cardName, bytes, targetFile.uri)
                     }
-                    Toast.makeText(this, "Saved $cardName to $dirName successfully!", Toast.LENGTH_SHORT).show()
+                    showToast("Saved $cardName to $dirName successfully!")
                     val action = pendingActionAfterSave
                     pendingActionAfterSave = null
                     action?.invoke()
                 } else {
-                    Toast.makeText(this, "Could not create $cardName in $dirName", Toast.LENGTH_LONG).show()
+                    showToast("Could not create $cardName in $dirName", isLong = true)
                     pendingActionAfterSave = null
                 }
             } catch (e: Exception) {
-                Toast.makeText(this, "Failed to save card: ${e.message}", Toast.LENGTH_LONG).show()
+                showToast("Failed to save card: ${e.message}", isLong = true)
                 pendingActionAfterSave = null
             }
         }
@@ -135,7 +150,7 @@ class MainActivity : ComponentActivity() {
                     viewModel.importSave(bytes)
                 }
             } catch (e: Exception) {
-                Toast.makeText(this, "Failed to read save file: ${e.message}", Toast.LENGTH_LONG).show()
+                showToast("Failed to read save file: ${e.message}", isLong = true)
             }
         }
     }
@@ -147,9 +162,9 @@ class MainActivity : ComponentActivity() {
                     contentResolver.openOutputStream(targetUri)?.use { out ->
                         out.write(bytes)
                     }
-                    Toast.makeText(this, "PSU save exported successfully!", Toast.LENGTH_SHORT).show()
+                    showToast("PSU save exported successfully!")
                 } catch (e: Exception) {
-                    Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    showToast("Export failed: ${e.message}", isLong = true)
                 }
             }
         }
@@ -163,9 +178,9 @@ class MainActivity : ComponentActivity() {
                     contentResolver.openOutputStream(targetUri)?.use { out ->
                         out.write(bytes)
                     }
-                    Toast.makeText(this, "Action Replay MAX save exported successfully!", Toast.LENGTH_SHORT).show()
+                    showToast("Action Replay MAX save exported successfully!")
                 } catch (e: Exception) {
-                    Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    showToast("Export failed: ${e.message}", isLong = true)
                 }
             }
         }
@@ -179,9 +194,9 @@ class MainActivity : ComponentActivity() {
                     contentResolver.openOutputStream(targetUri)?.use { out ->
                         out.write(bytes)
                     }
-                    Toast.makeText(this, "ZIP archive exported successfully!", Toast.LENGTH_SHORT).show()
+                    showToast("ZIP archive exported successfully!")
                 } catch (e: Exception) {
-                    Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    showToast("Export failed: ${e.message}", isLong = true)
                 }
             }
         }
@@ -220,8 +235,6 @@ class MainActivity : ComponentActivity() {
                 val snackbarMessage by viewModel.snackbarMessage.collectAsState()
                 val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsState()
                 val customDirectoryName by viewModel.customDirectoryName.collectAsState()
-
-                val snackbarHostState = remember { SnackbarHostState() }
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -432,11 +445,11 @@ class MainActivity : ComponentActivity() {
                                             out.write(bytes)
                                         }
                                         viewModel.loadCardFromBytes(name, bytes, targetFile.uri)
-                                        Toast.makeText(this, "Created and saved $name in custom directory!", Toast.LENGTH_SHORT).show()
+                                        showToast("Created and saved $name in custom directory!")
                                         savedInDir = true
                                     }
                                 } catch (e: Exception) {
-                                    Toast.makeText(this, "Could not save to custom directory: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    showToast("Could not save to custom directory: ${e.message}", isLong = true)
                                 }
                             }
                             if (!savedInDir) {
@@ -512,7 +525,7 @@ class MainActivity : ComponentActivity() {
                     out.write(bytes)
                 }
                 viewModel.markCardSaved(loaded.cardUri, loaded.cardName)
-                Toast.makeText(this, "Saved ${loaded.cardName} successfully!", Toast.LENGTH_SHORT).show()
+                showToast("Saved ${loaded.cardName} successfully!")
                 val action = pendingActionAfterSave
                 pendingActionAfterSave = null
                 action?.invoke()
@@ -533,7 +546,7 @@ class MainActivity : ComponentActivity() {
                         out.write(bytes)
                     }
                     viewModel.markCardSaved(targetFile.uri, loaded.cardName)
-                    Toast.makeText(this, "Saved ${loaded.cardName} to custom directory!", Toast.LENGTH_SHORT).show()
+                    showToast("Saved ${loaded.cardName} to custom directory!")
                     val action = pendingActionAfterSave
                     pendingActionAfterSave = null
                     action?.invoke()
@@ -562,7 +575,7 @@ class MainActivity : ComponentActivity() {
                 viewModel.loadCardFromBytes(fileName, bytes, uri)
             }
         } catch (e: Exception) {
-            Toast.makeText(this, "Failed to read card: ${e.message}", Toast.LENGTH_LONG).show()
+            showToast("Failed to read card: ${e.message}", isLong = true)
         }
     }
 
@@ -572,7 +585,7 @@ class MainActivity : ComponentActivity() {
             pendingExportPsuBytes = bytes
             exportPsuLauncher.launch("${save.directoryName}.psu")
         } else {
-            Toast.makeText(this, "Failed to export PSU", Toast.LENGTH_SHORT).show()
+            showToast("Failed to export PSU")
         }
     }
 
@@ -582,7 +595,7 @@ class MainActivity : ComponentActivity() {
             pendingExportMaxBytes = bytes
             exportMaxLauncher.launch("${save.directoryName}.max")
         } else {
-            Toast.makeText(this, "Failed to export Action Replay MAX save", Toast.LENGTH_SHORT).show()
+            showToast("Failed to export Action Replay MAX save")
         }
     }
 
@@ -592,7 +605,7 @@ class MainActivity : ComponentActivity() {
             pendingExportZipBytes = bytes
             exportZipLauncher.launch("${save.directoryName}.zip")
         } else {
-            Toast.makeText(this, "Failed to export ZIP", Toast.LENGTH_SHORT).show()
+            showToast("Failed to export ZIP")
         }
     }
 
