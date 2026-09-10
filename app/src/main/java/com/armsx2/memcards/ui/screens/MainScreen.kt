@@ -1,8 +1,11 @@
 package com.armsx2.memcards.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,28 +20,39 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.Button
-import androidx.compose.material3.Surface
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.armsx2.memcards.core.CardStats
 import com.armsx2.memcards.core.Ps2Save
 import com.armsx2.memcards.ui.FilterType
@@ -52,10 +66,10 @@ fun MainScreen(
     stats: CardStats,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
-    filterType: FilterType,
-    onFilterChange: (FilterType) -> Unit,
-    sortBy: SortBy,
-    onSortChange: (SortBy) -> Unit,
+    filterType: FilterType = FilterType.ALL,
+    onFilterChange: (FilterType) -> Unit = {},
+    sortBy: SortBy = SortBy.NAME_ASC,
+    onSortChange: (SortBy) -> Unit = {},
     onSaveClick: (Ps2Save) -> Unit,
     onExportPsu: (Ps2Save) -> Unit,
     onExportZip: (Ps2Save) -> Unit,
@@ -89,14 +103,45 @@ fun MainScreen(
         }
     }
 
+    val listState = rememberLazyListState()
+    var isTopInfoVisible by rememberSaveable { mutableStateOf(true) }
+
+    // Dynamic UI: Hide top info when scrolling down / towards bottom, reveal when scrolling up or at top
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val delta = available.y
+                if (delta < -10f) {
+                    // Scrolling down / towards bottom
+                    isTopInfoVisible = false
+                } else if (delta > 10f) {
+                    // Scrolling up / towards top
+                    isTopInfoVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    // Always restore top info when user is at the very top of the list
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                if (index == 0 && offset == 0) {
+                    isTopInfoVisible = true
+                }
+            }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onImportPsu,
+                expanded = isTopInfoVisible,
                 icon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
                 text = { Text("Import Save") },
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             )
@@ -106,109 +151,99 @@ fun MainScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .nestedScroll(nestedScrollConnection)
         ) {
-            if (hasUnsavedChanges || isInMemoryOnly) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+            // Collapsible Top Info: Unsaved changes banner & Card Storage stats
+            AnimatedVisibility(
+                visible = isTopInfoVisible,
+                enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (hasUnsavedChanges || isInMemoryOnly) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Save,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isInMemoryOnly) "Unsaved Card (Stored in memory)" else "Unsaved changes on card",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Save,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (isInMemoryOnly) "Unsaved Card (Stored in memory)" else "Unsaved changes on card",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
 
-                        Button(
-                            onClick = onSaveCard,
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Icon(Icons.Default.Save, null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Save", style = MaterialTheme.typography.labelSmall)
+                                Button(
+                                    onClick = onSaveCard,
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Save, null, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Save", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
                         }
                     }
+
+                    // Storage Bar
+                    StorageBar(
+                        stats = stats,
+                        saveCount = saves.size
+                    )
                 }
             }
 
-            // Storage Bar
-            StorageBar(
-                stats = stats,
-                saveCount = saves.size
-            )
-
-            // Search Box
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchChange,
-                placeholder = { Text("Search saves by title or code...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchChange("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear")
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-
-            // Filter Chips
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Search Box (Collapses when scrolling down, but remains if actively querying)
+            AnimatedVisibility(
+                visible = isTopInfoVisible || searchQuery.isNotEmpty(),
+                enter = expandVertically(animationSpec = tween(250)) + fadeIn(animationSpec = tween(200)),
+                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(animationSpec = tween(150))
             ) {
-                FilterChip(
-                    selected = (filterType == FilterType.ALL),
-                    onClick = { onFilterChange(FilterType.ALL) },
-                    label = { Text("All (${saves.size})") }
-                )
-                FilterChip(
-                    selected = (filterType == FilterType.PS2_ONLY),
-                    onClick = { onFilterChange(FilterType.PS2_ONLY) },
-                    label = { Text("PS2") }
-                )
-                FilterChip(
-                    selected = (filterType == FilterType.PROTECTED),
-                    onClick = { onFilterChange(FilterType.PROTECTED) },
-                    label = { Text("Protected") }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchChange,
+                    placeholder = { Text("Search saves by title or code...", style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { onSearchChange("") }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
 
             // Save List
             if (filteredSaves.isEmpty()) {
@@ -216,7 +251,7 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(32.dp),
+                        .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -227,11 +262,12 @@ fun MainScreen(
                 }
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     items(filteredSaves, key = { it.directoryName }) { save ->
                         SaveCard(

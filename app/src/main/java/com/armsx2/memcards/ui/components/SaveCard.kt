@@ -61,16 +61,16 @@ fun SaveCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Icon thumbnail
@@ -79,28 +79,28 @@ fun SaveCard(
                     bitmap = save.iconBitmap.asImageBitmap(),
                     contentDescription = save.displayTitle,
                     modifier = Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     val initial = save.displayTitle.firstOrNull()?.uppercase() ?: "P"
                     Text(
                         text = initial,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             // Game details
             Column(
@@ -109,8 +109,8 @@ fun SaveCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = save.displayTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -122,7 +122,7 @@ fun SaveCard(
                             imageVector = Icons.Default.Lock,
                             contentDescription = "Protected",
                             tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(12.dp)
                         )
                     }
 
@@ -132,7 +132,7 @@ fun SaveCard(
                             imageVector = Icons.Default.VisibilityOff,
                             contentDescription = "Hidden",
                             tint = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(12.dp)
                         )
                     }
                 }
@@ -140,28 +140,28 @@ fun SaveCard(
                 if (save.displaySubtitle.isNotBlank()) {
                     Text(
                         text = save.displaySubtitle,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(4.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Text(
                             text = save.directoryName,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
 
@@ -188,10 +188,14 @@ fun SaveCard(
 
             // More actions button
             Box {
-                IconButton(onClick = { menuExpanded = true }) {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(32.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Save Actions"
+                        contentDescription = "Save Actions",
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
