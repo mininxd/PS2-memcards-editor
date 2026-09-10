@@ -74,50 +74,6 @@
 
 ---
 
-## Project Structure
-
-```
-├── .github/workflows/
-│   └── build.yml               # GitHub Actions CI workflow (manual dispatch & push)
-├── app/
-│   ├── build.gradle.kts        # Android build configuration (SDK 26 min, SDK 34 target)
-│   └── src/
-│       ├── main/
-│       │   ├── AndroidManifest.xml
-│       │   ├── java/com/armsx2/memcards/
-│       │   │   ├── core/           # Pure Kotlin PS2 Filesystem & Save Engine
-│       │   │   │   ├── Ps2Memcard.kt          # Superblock, FAT, directory, and cluster I/O
-│       │   │   │   ├── Ps2SuperBlock.kt       # Superblock layout, geometry & validation
-│       │   │   │   ├── Ps2DirectoryEntry.kt   # Directory parsing, mode flags, and timestamps
-│       │   │   │   ├── Ps2Ecc.kt              # Parity tables & Hamming ECC calculation
-│       │   │   │   ├── Ps2Save.kt             # High-level save representation
-│       │   │   │   ├── Ps2IconSys.kt          # icon.sys parser (titles, lighting, icons)
-│       │   │   │   ├── Ps2IconDecoder.kt      # 3D .icn texture decoder & bitmap renderer
-│       │   │   │   ├── Ps2ShiftJis.kt         # Shift-JIS & full-width Japanese text decoder
-│       │   │   │   ├── PsuHandler.kt          # PSU/EMS archive packer and unpacker
-│       │   │   │   ├── MaxHandler.kt          # Action Replay MAX (.max) archive unpacker
-│       │   │   │   ├── CbsHandler.kt          # CodeBreaker (.cbs) archive unpacker
-│       │   │   │   ├── FolderMemcardHandler.kt# PCSX2 folder memory card handler
-│       │   │   │   └── MemcardFormatter.kt    # Unformatted (0xFF) & pre-formatted card generator
-│       │   │   └── ui/             # Jetpack Compose & Material 3 UI Layer
-│       │   │       ├── MainActivity.kt        # Main activity & SAF file pickers
-│       │   │       ├── MemcardViewModel.kt    # State management & coroutines
-│       │   │       ├── theme/                 # Material 3 colors, shapes, and typography
-│       │   │       ├── components/            # Reusable Compose components (dialogs, cards, chips)
-│       │   │       └── screens/               # MainScreen & EmptyStateScreen
-│       │   └── res/
-│       └── test/
-│           └── java/com/armsx2/memcards/      # Comprehensive unit tests for card operations
-├── myMCpp/                         # myMCpp C++ reference implementation (submodule)
-├── reference/                      # PS2 memory card filesystem specifications & documentation
-├── gradle/
-│   └── libs.versions.toml          # Centralized dependency version catalog
-├── build.gradle.kts
-└── settings.gradle.kts
-```
-
----
-
 ## Building with GitHub Actions
 
 The repository includes a ready-to-run GitHub Actions workflow:
