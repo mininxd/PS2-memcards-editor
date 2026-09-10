@@ -41,11 +41,8 @@ object UpdateChecker {
                     return@withContext UpdateStatus.Error("No release tag found")
                 }
 
-                val cleanTag = tagName.removePrefix("v").removePrefix("V").trim()
-                val cleanCurrent = currentVersion.removePrefix("v").removePrefix("V").trim()
-
                 val isNewer = isNewerVersion(tagName, currentVersion)
-                if (isNewer || cleanTag != cleanCurrent) {
+                if (isNewer) {
                     UpdateStatus.UpdateAvailable(tagName, htmlUrl)
                 } else {
                     UpdateStatus.UpToDate(currentVersion)
@@ -63,8 +60,8 @@ object UpdateChecker {
     }
 
     fun isNewerVersion(remoteTag: String, currentVersion: String): Boolean {
-        val cleanRemote = remoteTag.removePrefix("v").removePrefix("V").trim()
-        val cleanCurrent = currentVersion.removePrefix("v").removePrefix("V").trim()
+        val cleanRemote = remoteTag.removePrefix("v").removePrefix("V").split("-").first().split("+").first().trim()
+        val cleanCurrent = currentVersion.removePrefix("v").removePrefix("V").split("-").first().split("+").first().trim()
         val remoteParts = cleanRemote.split(".").mapNotNull { it.toIntOrNull() }
         val currentParts = cleanCurrent.split(".").mapNotNull { it.toIntOrNull() }
         val maxLen = maxOf(remoteParts.size, currentParts.size)
