@@ -1,9 +1,0 @@
-Version 1.2.0
-
-Changes:
-- Implemented pure-Kotlin 3D software rasterizer to render PS2 polygonal save icons as 2D static image previews with depth buffering and 3-point lighting.
-- Added PlayStation 1 (PSX) save icon decoding (16x16 CLUT) and Shift-JIS game title extraction.
-- Added in-memory LRU bitmap caching to prevent re-rendering identical save icons.
-- Redesigned Hex Viewer dialog with sticky headers, 8-byte grouping, zero-byte dimming, jump-to-offset, and data inspector.
-- Updated app versionCode to 4 and versionName to 1.2.0.
-
