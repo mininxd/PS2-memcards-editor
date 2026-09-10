@@ -148,8 +148,14 @@ class MainActivity : ComponentActivity() {
                         MemcardFormatter.createUnformatted(sizeInMB, useEcc)
                     }
 
-                    contentResolver.openOutputStream(targetFile.uri, "wt")?.use { out ->
-                        out.write(bytes)
+                    val out = try {
+                        contentResolver.openOutputStream(targetFile.uri, "wt")
+                    } catch (_: Exception) {
+                        contentResolver.openOutputStream(targetFile.uri, "w")
+                    } ?: throw java.io.IOException("Could not open output stream for writing")
+
+                    out.use { stream ->
+                        stream.write(bytes)
                     }
 
                     withContext(Dispatchers.Main) {
@@ -177,8 +183,14 @@ class MainActivity : ComponentActivity() {
                     val docDir = DocumentFile.fromTreeUri(this@MainActivity, dirUri)
                     val targetFile = docDir?.findFile(cardName) ?: docDir?.createFile("application/octet-stream", cardName)
                     if (targetFile != null) {
-                        contentResolver.openOutputStream(targetFile.uri, "wt")?.use { out ->
-                            out.write(rawData)
+                        val out = try {
+                            contentResolver.openOutputStream(targetFile.uri, "wt")
+                        } catch (_: Exception) {
+                            contentResolver.openOutputStream(targetFile.uri, "w")
+                        } ?: throw java.io.IOException("Could not open output stream for writing")
+
+                        out.use { stream ->
+                            stream.write(rawData)
                         }
                         withContext(Dispatchers.Main) {
                             viewModel.markCardSaved(targetFile.uri, cardName)
@@ -546,16 +558,25 @@ class MainActivity : ComponentActivity() {
 
         // If card already has a file URI, save directly to it
         if (loaded.cardUri != null) {
+            val cardUri = loaded.cardUri
+            val cardName = loaded.cardName
+            val rawData = loaded.memcard.getRawDataDirect()
             lifecycleScope.launch {
-                viewModel.setLoading("Saving ${loaded.cardName}...")
+                viewModel.setLoading("Saving $cardName...")
                 withContext(Dispatchers.IO) {
                     try {
-                        contentResolver.openOutputStream(loaded.cardUri, "wt")?.use { out ->
-                            out.write(loaded.memcard.getRawDataDirect())
+                        val out = try {
+                            contentResolver.openOutputStream(cardUri, "wt")
+                        } catch (_: Exception) {
+                            contentResolver.openOutputStream(cardUri, "w")
+                        } ?: throw java.io.IOException("Could not open output stream for writing")
+
+                        out.use { stream ->
+                            stream.write(rawData)
                         }
                         withContext(Dispatchers.Main) {
-                            viewModel.markCardSaved(loaded.cardUri, loaded.cardName)
-                            showToast("Saved ${loaded.cardName} successfully!")
+                            viewModel.markCardSaved(cardUri, cardName)
+                            showToast("Saved $cardName successfully!")
                             val action = pendingActionAfterSave
                             pendingActionAfterSave = null
                             action?.invoke()
@@ -563,6 +584,7 @@ class MainActivity : ComponentActivity() {
                     } catch (t: Throwable) {
                         withContext(Dispatchers.Main) {
                             // If writing to original URI failed (e.g. permission lost), fall back to folder picker
+                            viewModel.clearLoading()
                             triggerSaveCardAs()
                         }
                     }
@@ -583,6 +605,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun triggerSaveCardAs() {
+        viewModel.clearLoading()
         if (viewModel.uiState.value is CardUiState.Loaded) {
             selectSaveDirectoryLauncher.launch(null)
         }

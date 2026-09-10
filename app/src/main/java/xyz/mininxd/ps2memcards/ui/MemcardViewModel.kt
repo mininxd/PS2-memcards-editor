@@ -87,6 +87,13 @@ class MemcardViewModel : ViewModel() {
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
 
+    private var currentLoadedCard: CardUiState.Loaded? = null
+
+    private fun setLoadedState(loaded: CardUiState.Loaded) {
+        currentLoadedCard = loaded
+        _uiState.value = loaded
+    }
+
     fun setCustomDirectory(uri: Uri?, name: String?) {
         _customDirectoryUri.value = uri
         _customDirectoryName.value = name
@@ -94,11 +101,12 @@ class MemcardViewModel : ViewModel() {
 
     fun markCardSaved(savedUri: Uri? = null, savedName: String? = null) {
         _hasUnsavedChanges.value = false
-        val current = _uiState.value as? CardUiState.Loaded ?: return
-        _uiState.value = current.copy(
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
+        val updated = current.copy(
             cardName = savedName ?: current.cardName,
             cardUri = savedUri ?: current.cardUri
         )
+        setLoadedState(updated)
     }
 
     fun setLoading(message: String) {
@@ -111,12 +119,12 @@ class MemcardViewModel : ViewModel() {
 
     fun clearLoading() {
         if (_uiState.value is CardUiState.Loading) {
-            _uiState.value = CardUiState.Empty
+            _uiState.value = currentLoadedCard ?: CardUiState.Empty
         }
     }
 
     fun getRawCardData(): ByteArray? {
-        val current = _uiState.value as? CardUiState.Loaded ?: return null
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return null
         return current.memcard.getRawDataDirect()
     }
 
@@ -175,13 +183,14 @@ class MemcardViewModel : ViewModel() {
                         val saves = card.listSaves()
                         val stats = card.getStats()
                         _hasUnsavedChanges.value = false
-                        _uiState.value = CardUiState.Loaded(
+                        val loaded = CardUiState.Loaded(
                             cardName = fileName,
                             cardUri = uri,
                             memcard = card,
                             saves = saves,
                             stats = stats
                         )
+                        setLoadedState(loaded)
                         _snackbarMessage.value = "Loaded $fileName (${saves.size} saves)"
                     } else {
                         _uiState.value = CardUiState.Error("Invalid PS2 Memory Card image format.")
@@ -203,13 +212,14 @@ class MemcardViewModel : ViewModel() {
                         val saves = card.listSaves()
                         val stats = card.getStats()
                         _hasUnsavedChanges.value = false
-                        _uiState.value = CardUiState.Loaded(
+                        val loaded = CardUiState.Loaded(
                             cardName = name,
                             cardUri = uri,
                             memcard = card,
                             saves = saves,
                             stats = stats
                         )
+                        setLoadedState(loaded)
                         _snackbarMessage.value = "Loaded $name (${saves.size} saves)"
                     } else {
                         _uiState.value = CardUiState.Error("Invalid PS2 Memory Card image format.")
@@ -236,13 +246,14 @@ class MemcardViewModel : ViewModel() {
                         val saves = card.listSaves()
                         val stats = card.getStats()
                         _hasUnsavedChanges.value = true
-                        _uiState.value = CardUiState.Loaded(
+                        val loaded = CardUiState.Loaded(
                             cardName = name,
                             cardUri = null,
                             memcard = card,
                             saves = saves,
                             stats = stats
                         )
+                        setLoadedState(loaded)
                         _snackbarMessage.value = "Created $name successfully!"
                     } else {
                         _uiState.value = CardUiState.Error("Failed to initialize memory card.")
@@ -255,7 +266,7 @@ class MemcardViewModel : ViewModel() {
     }
 
     fun formatCurrentCard() {
-        val current = _uiState.value as? CardUiState.Loaded ?: return
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
         viewModelScope.launch {
             _uiState.value = CardUiState.Loading("Formatting card...")
             withContext(Dispatchers.Default) {
@@ -265,13 +276,14 @@ class MemcardViewModel : ViewModel() {
                     val card = Ps2Memcard.open(bytes)
                     if (card != null) {
                         _hasUnsavedChanges.value = true
-                        _uiState.value = CardUiState.Loaded(
+                        val loaded = CardUiState.Loaded(
                             cardName = current.cardName,
                             cardUri = current.cardUri,
                             memcard = card,
                             saves = emptyList(),
                             stats = card.getStats()
                         )
+                        setLoadedState(loaded)
                         _snackbarMessage.value = "Memory card formatted successfully."
                     }
                 } catch (t: Throwable) {
@@ -282,7 +294,7 @@ class MemcardViewModel : ViewModel() {
     }
 
     fun deleteSave(saveName: String) {
-        val current = _uiState.value as? CardUiState.Loaded ?: return
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
         viewModelScope.launch {
             withContext(Dispatchers.Default) {
                 try {
@@ -292,7 +304,8 @@ class MemcardViewModel : ViewModel() {
                         val stats = current.memcard.getStats()
                         _selectedSave.value = null
                         _hasUnsavedChanges.value = true
-                        _uiState.value = current.copy(saves = saves, stats = stats)
+                        val loaded = current.copy(saves = saves, stats = stats)
+                        setLoadedState(loaded)
                         _snackbarMessage.value = "Deleted save $saveName"
                     } else {
                         _snackbarMessage.value = "Failed to delete save $saveName"
@@ -305,7 +318,7 @@ class MemcardViewModel : ViewModel() {
     }
 
     fun importSave(saveBytes: ByteArray) {
-        val current = _uiState.value as? CardUiState.Loaded ?: return
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
         if (!current.stats.isFormatted) {
             _snackbarMessage.value = "Card must be formatted before importing saves."
             return
@@ -319,14 +332,15 @@ class MemcardViewModel : ViewModel() {
                         val saves = current.memcard.listSaves()
                         val stats = current.memcard.getStats()
                         _hasUnsavedChanges.value = true
-                        _uiState.value = current.copy(saves = saves, stats = stats)
+                        val loaded = current.copy(saves = saves, stats = stats)
+                        setLoadedState(loaded)
                         _snackbarMessage.value = "Imported save successfully!"
                     } else {
-                        _uiState.value = current
+                        setLoadedState(current)
                         _snackbarMessage.value = "Failed to import save (insufficient space or invalid format)."
                     }
                 } catch (e: Exception) {
-                    _uiState.value = current
+                    setLoadedState(current)
                     _snackbarMessage.value = "Import error: ${e.message}"
                 }
             }
@@ -336,17 +350,17 @@ class MemcardViewModel : ViewModel() {
     fun importPsu(psuBytes: ByteArray) = importSave(psuBytes)
 
     fun exportPsu(saveName: String): ByteArray? {
-        val current = _uiState.value as? CardUiState.Loaded ?: return null
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return null
         return current.memcard.exportSaveAsPsu(saveName)
     }
 
     fun exportMax(saveName: String): ByteArray? {
-        val current = _uiState.value as? CardUiState.Loaded ?: return null
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return null
         return current.memcard.exportSaveAsMax(saveName)
     }
 
     fun exportZip(saveName: String): ByteArray? {
-        val current = _uiState.value as? CardUiState.Loaded ?: return null
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return null
         val save = current.saves.firstOrNull { it.directoryName == saveName } ?: return null
 
         val bos = ByteArrayOutputStream()
@@ -366,6 +380,7 @@ class MemcardViewModel : ViewModel() {
 
 
     fun closeCard() {
+        currentLoadedCard = null
         _uiState.value = CardUiState.Empty
         _hasUnsavedChanges.value = false
         _selectedSave.value = null
