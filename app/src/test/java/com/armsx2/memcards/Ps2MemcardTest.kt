@@ -301,4 +301,70 @@ class Ps2MemcardTest {
         assertTrue(card.deleteSave(dirName))
         assertEquals(0, card.listSaves().size)
     }
+
+    @Test
+    fun testMultipleSavesImportAndList() {
+        val cardData = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
+        val card = Ps2Memcard.open(cardData)!!
+
+        // 1. Import First Save (Black)
+        val dir1 = "BESLES-54030"
+        val max1 = MaxHandler.packMax(
+            dirName = dir1,
+            iconSysTitle = "BLACK",
+            files = mapOf("icon.sys" to ByteArray(964), "view.ico" to ByteArray(1000), "BESLES-54030" to ByteArray(500))
+        )
+        assertTrue(card.importSave(max1))
+
+        var saves = card.listSaves()
+        assertEquals(1, saves.size)
+        assertEquals(dir1, saves[0].directoryName)
+
+        // 2. Import Second Save (Mortal Kombat: Shaolin Monks)
+        val dir2 = "BASLUS-21087"
+        val max2 = MaxHandler.packMax(
+            dirName = dir2,
+            iconSysTitle = "Mortal Kombat",
+            files = mapOf("icon.sys" to ByteArray(964), "game.icn" to ByteArray(1200), "BASLUS-21087" to ByteArray(800))
+        )
+        assertTrue(card.importSave(max2))
+
+        saves = card.listSaves()
+        assertEquals(2, saves.size)
+        val saveNames = saves.map { it.directoryName }.toSet()
+        assertTrue(saveNames.contains(dir1))
+        assertTrue(saveNames.contains(dir2))
+
+        // 3. Verify BIOS directory backlinks
+        val rootCluster = if (card.superBlock.rootdirCluster >= card.allocOffset) {
+            card.superBlock.rootdirCluster - card.allocOffset
+        } else {
+            card.superBlock.rootdirCluster
+        }
+        val rootEntries = card.readDirents(rootCluster)
+        assertEquals(4, rootEntries.size) // ".", "..", dir1, dir2
+
+        for (e in rootEntries) {
+            if (e.name == "." || e.name == "..") continue
+            val sub = card.readDirents(e.cluster)
+            assertTrue(sub.isNotEmpty())
+            val dot = sub[0]
+            val slot = dot.dirEntry.toInt()
+            assertTrue(slot in rootEntries.indices)
+            assertEquals(e.name, rootEntries[slot].name)
+        }
+
+        // 4. Delete first save and verify second save remains intact and backlink updated
+        assertTrue(card.deleteSave(dir1))
+        saves = card.listSaves()
+        assertEquals(1, saves.size)
+        assertEquals(dir2, saves[0].directoryName)
+
+        val updatedRoot = card.readDirents(rootCluster)
+        assertEquals(3, updatedRoot.size) // ".", "..", dir2
+        val sub2 = card.readDirents(updatedRoot[2].cluster)
+        assertEquals(2, sub2[0].dirEntry.toInt())
+        assertEquals(dir2, updatedRoot[2].name)
+    }
 }
+

@@ -31,13 +31,19 @@ object MemcardFormatter {
 
         // FAT calculations
         // 256 FAT entries (4 bytes each) fit in 1 cluster (1024 bytes)
-        val fatClusters = (totalClusters + 255) / 256
-        val indirectClusters = (fatClusters + 255) / 256
+        val epc = clusterSize / 4
+        val allocatableClustersEst = totalClusters - (8 + 2)
+        var fatClusters = (allocatableClustersEst + epc - 1) / epc
+        var indirectClusters = (fatClusters + epc - 1) / epc
+        if (indirectClusters > 32) {
+            indirectClusters = 32
+            fatClusters = indirectClusters * epc
+        }
 
         val ifcClusterStart = 8L // Block 1
         val fatClusterStart = ifcClusterStart + indirectClusters
         val allocOffset = fatClusterStart + fatClusters
-        val allocEnd = (totalBlocks - 2) * clustersPerBlock - allocOffset
+        val allocEnd = backupBlock2 * clustersPerBlock - allocOffset
 
         val ifcList = IntArray(32) { 0 }
         for (i in 0 until indirectClusters) {
@@ -63,7 +69,7 @@ object MemcardFormatter {
             ifcList = ifcList,
             badBlockList = badBlockList,
             cardType = 2,
-            cardFlags = if (useEcc) 0x52 else 0x50
+            cardFlags = if (useEcc) 0x2B else 0x2A
         )
 
         // Raw buffer in memory (512 bytes per page)
@@ -75,13 +81,16 @@ object MemcardFormatter {
         System.arraycopy(sbBytes, 0, rawData, 0, sbBytes.size)
 
         // Write Indirect FAT
+        var currentFatCluster = fatClusterStart.toInt()
         val indirectBuf = ByteBuffer.allocate(indirectClusters * clusterSize).order(ByteOrder.LITTLE_ENDIAN)
-        for (i in 0 until fatClusters) {
-            indirectBuf.putInt((fatClusterStart + i).toInt())
-        }
-        val remainingIndirect = (indirectClusters * clusterSize) - (fatClusters * 4)
-        if (remainingIndirect > 0) {
-            indirectBuf.put(ByteArray(remainingIndirect))
+        for (i in 0 until indirectClusters) {
+            for (j in 0 until epc) {
+                if (currentFatCluster < allocOffset) {
+                    indirectBuf.putInt(currentFatCluster++)
+                } else {
+                    indirectBuf.putInt(0xFFFFFFFF.toInt())
+                }
+            }
         }
         val ifcBytes = indirectBuf.array()
         System.arraycopy(ifcBytes, 0, rawData, (ifcClusterStart * clusterSize).toInt(), ifcBytes.size)
@@ -118,11 +127,11 @@ object MemcardFormatter {
         val rootDotBytes = rootDot.toByteArray()
         System.arraycopy(rootDotBytes, 0, rawData, rootDirPos, rootDotBytes.size)
 
-        // Root dir ".." entry
+        // Root dir ".." entry (Sony mcman McCreateDirentry: mode = 0xA426, hidden, write/execute, no read)
         val rootDotDot = Ps2DirectoryEntry(
             mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or
-                    Ps2DirectoryEntry.DF_READ or Ps2DirectoryEntry.DF_WRITE or
-                    Ps2DirectoryEntry.DF_EXECUTE or Ps2DirectoryEntry.DF_0400,
+                    Ps2DirectoryEntry.DF_WRITE or Ps2DirectoryEntry.DF_EXECUTE or
+                    Ps2DirectoryEntry.DF_0400 or Ps2DirectoryEntry.DF_HIDDEN,
             length = 0,
             created = now,
             cluster = 0,
@@ -134,9 +143,18 @@ object MemcardFormatter {
         val rootDotDotBytes = rootDotDot.toByteArray()
         System.arraycopy(rootDotDotBytes, 0, rawData, rootDirPos + Ps2DirectoryEntry.ENTRY_SIZE, rootDotDotBytes.size)
 
+        // Backup block 2 must be in erased flash state (all 0xFF including spare area)
+        // Sony mcman checkBackupBlocks checks backup block 2 to ensure no programming was interrupted
         return if (useEcc) {
-            Ps2Ecc.convertRawToEcc(rawData)
+            val eccData = Ps2Ecc.convertRawToEcc(rawData)
+            val backup2Start = (backupBlock2 * pagesPerBlock * 528).toInt()
+            val backup2Len = pagesPerBlock * 528
+            java.util.Arrays.fill(eccData, backup2Start, backup2Start + backup2Len, 0xFF.toByte())
+            eccData
         } else {
+            val backup2Start = (backupBlock2 * pagesPerBlock * 512).toInt()
+            val backup2Len = pagesPerBlock * 512
+            java.util.Arrays.fill(rawData, backup2Start, backup2Start + backup2Len, 0xFF.toByte())
             rawData
         }
     }

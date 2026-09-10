@@ -22,7 +22,7 @@ data class Ps2SuperBlock(
     val ifcList: IntArray = IntArray(32) { if (it == 0) 8 else 0 },
     val badBlockList: IntArray = IntArray(32) { -1 },
     val cardType: Int = 2,
-    val cardFlags: Int = 0x52
+    val cardFlags: Int = 0x2B
 ) {
     val clusterSize: Int get() = pageLen * pagesPerCluster
     val blockSize: Int get() = pageLen * pagesPerBlock
