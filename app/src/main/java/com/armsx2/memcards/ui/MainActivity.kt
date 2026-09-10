@@ -353,7 +353,8 @@ class MainActivity : ComponentActivity() {
                                     onImportPsu = { importSaveLauncher.launch(arrayOf("*/*")) },
                                     hasUnsavedChanges = hasUnsavedChanges,
                                     isInMemoryOnly = isInMemoryOnly,
-                                    onSaveCard = { triggerSaveCurrentCard() }
+                                    onSaveCard = { triggerSaveCurrentCard() },
+                                    onFormatCard = { viewModel.setShowFormatDialog(true) }
                                 )
                             }
                             is CardUiState.Error -> {
@@ -413,9 +414,13 @@ class MainActivity : ComponentActivity() {
                         customDirectoryName = customDirectoryName,
                         onSelectCustomDirectory = { selectSaveDirectoryLauncher.launch(null) },
                         onDismiss = { viewModel.setShowCreateDialog(false) },
-                        onSaveCard = { name, size, ecc ->
+                        onSaveCard = { name, size, ecc, formatted ->
                             viewModel.setShowCreateDialog(false)
-                            val bytes = MemcardFormatter.format(size, ecc)
+                            val bytes = if (formatted) {
+                                MemcardFormatter.format(size, ecc)
+                            } else {
+                                MemcardFormatter.createUnformatted(size, ecc)
+                            }
                             val customDirUri = viewModel.customDirectoryUri.value
                             var savedInDir = false
                             if (customDirUri != null) {

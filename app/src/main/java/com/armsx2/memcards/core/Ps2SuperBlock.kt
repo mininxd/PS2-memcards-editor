@@ -191,5 +191,26 @@ data class Ps2SuperBlock(
                 cardFlags = cardFlags
             )
         }
+
+        fun createUnformatted(clustersPerCard: Long, hasEcc: Boolean): Ps2SuperBlock {
+            val totalBlocks = clustersPerCard / 8
+            return Ps2SuperBlock(
+                magic = "",
+                version = "",
+                pageLen = 512,
+                pagesPerCluster = 2,
+                pagesPerBlock = 16,
+                clustersPerCard = clustersPerCard,
+                allocOffset = 41L,
+                allocEnd = maxOf(0L, (totalBlocks - 2) * 8 - 41L),
+                rootdirCluster = 0L,
+                backupBlock1 = maxOf(0L, totalBlocks - 1),
+                backupBlock2 = maxOf(0L, totalBlocks - 2),
+                ifcList = IntArray(32) { 0 },
+                badBlockList = IntArray(32) { -1 },
+                cardType = 2,
+                cardFlags = if (hasEcc) 0x2B else 0x2A
+            )
+        }
     }
 }

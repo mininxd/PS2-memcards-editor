@@ -63,7 +63,7 @@ fun StorageBar(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "$saveCount saves stored",
+                        text = if (stats.isFormatted) "$saveCount saves stored" else "Card is unformatted",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -71,13 +71,13 @@ fun StorageBar(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = if (stats.isFormatted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
                 ) {
                     Text(
-                        text = "${stats.freeSpaceKb} KB free",
+                        text = if (stats.isFormatted) "${stats.freeSpaceKb} KB free" else "UNFORMATTED",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = if (stats.isFormatted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
@@ -86,7 +86,7 @@ fun StorageBar(
             Spacer(modifier = Modifier.height(6.dp))
 
             LinearProgressIndicator(
-                progress = { animatedProgress },
+                progress = { if (stats.isFormatted) animatedProgress else 0f },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
@@ -102,7 +102,11 @@ fun StorageBar(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "${stats.usedSpaceKb} KB / ${stats.totalSpaceKb} KB (${(stats.usedPercent * 100).toInt()}%)",
+                    text = if (stats.isFormatted) {
+                        "${stats.usedSpaceKb} KB / ${stats.totalSpaceKb} KB (${(stats.usedPercent * 100).toInt()}%)"
+                    } else {
+                        "${stats.totalSpaceKb / 1024} MB Unformatted"
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

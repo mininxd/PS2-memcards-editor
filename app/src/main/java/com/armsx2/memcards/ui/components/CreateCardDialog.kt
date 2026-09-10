@@ -43,10 +43,11 @@ fun CreateCardDialog(
     customDirectoryName: String?,
     onSelectCustomDirectory: () -> Unit,
     onDismiss: () -> Unit,
-    onSaveCard: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit
+    onSaveCard: (name: String, sizeInMB: Int, useEcc: Boolean, isFormatted: Boolean) -> Unit
 ) {
     var cardName by remember { mutableStateOf("mcd001.ps2") }
     var selectedSize by remember { mutableIntStateOf(8) }
+    var isPreformatted by remember { mutableStateOf(false) } // Default: standard unformatted (matching PCSX2/armsx2)
     var useEcc by remember { mutableStateOf(true) }
 
     val sizes = listOf(8, 16, 32, 64, 128)
@@ -72,7 +73,7 @@ fun CreateCardDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = "Capacity:",
@@ -95,34 +96,88 @@ fun CreateCardDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Card Creation Mode:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = !isPreformatted,
+                        onClick = { isPreformatted = false },
+                        label = { Text("Unformatted (PCSX2/ARMSX2)") }
+                    )
+                    FilterChip(
+                        selected = isPreformatted,
+                        onClick = { isPreformatted = true },
+                        label = { Text("Pre-formatted") }
+                    )
+                }
+
+                Text(
+                    text = if (!isPreformatted) {
+                        "Standard erase state (0xFF). Format inside PS2 BIOS or game (recommended for emulator compatibility)."
+                    } else {
+                        "Initializes PS2 filesystem now so saves can be managed immediately in this app."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { useEcc = !useEcc },
+                        .clickable {
+                            val newEcc = !useEcc
+                            useEcc = newEcc
+                            if (!newEcc && cardName.endsWith(".ps2", ignoreCase = true)) {
+                                cardName = cardName.removeSuffix(".ps2") + ".bin"
+                            } else if (newEcc && (cardName.endsWith(".bin", ignoreCase = true) || cardName.endsWith(".mc2", ignoreCase = true))) {
+                                val base = cardName.substringBeforeLast(".")
+                                cardName = "$base.ps2"
+                            }
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Include ECC (Recommended)",
+                            text = "Include ECC (Recommended for .ps2)",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = if (useEcc) "528 B/page (Standard PCSX2/ARMSX2)" else "512 B/page (RAW format)",
+                            text = if (useEcc) "528 B/page (Standard PCSX2 & ARMSX2 .ps2)" else "512 B/page (RAW .bin / .mc2 format)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
                     Switch(
                         checked = useEcc,
-                        onCheckedChange = { useEcc = it }
+                        onCheckedChange = { checked ->
+                            useEcc = checked
+                            if (!checked && cardName.endsWith(".ps2", ignoreCase = true)) {
+                                cardName = cardName.removeSuffix(".ps2") + ".bin"
+                            } else if (checked && (cardName.endsWith(".bin", ignoreCase = true) || cardName.endsWith(".mc2", ignoreCase = true))) {
+                                val base = cardName.substringBeforeLast(".")
+                                cardName = "$base.ps2"
+                            }
+                        }
                     )
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Custom Directory Selection
                 Surface(
@@ -182,7 +237,7 @@ fun CreateCardDialog(
             Button(
                 onClick = {
                     if (cardName.isNotBlank()) {
-                        onSaveCard(cardName.trim(), selectedSize, useEcc)
+                        onSaveCard(cardName.trim(), selectedSize, useEcc, isPreformatted)
                     }
                 },
                 shape = RoundedCornerShape(12.dp)

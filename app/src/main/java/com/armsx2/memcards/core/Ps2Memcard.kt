@@ -15,6 +15,7 @@ class Ps2Memcard private constructor(
     var superBlock: Ps2SuperBlock
 ) {
 
+    val isFormatted: Boolean get() = superBlock.isFormatted()
     val clusterSize: Int get() = superBlock.clusterSize
     val totalCapacityBytes: Long get() = superBlock.totalCapacityBytes
     val totalCapacityMb: Double get() = superBlock.totalCapacityMb
@@ -116,6 +117,10 @@ class Ps2Memcard private constructor(
      * Preloads the FAT table into memory following myMCpp's readFatFromCard implementation.
      */
     fun loadFatFromCard() {
+        if (!isFormatted) {
+            fatTable = IntArray(0)
+            return
+        }
         val totalAllocatable = maxOf(superBlock.allocatableClusters, superBlock.allocEnd).toInt()
         if (totalAllocatable <= 0) return
 
@@ -520,6 +525,7 @@ class Ps2Memcard private constructor(
      * Lightweight: extracts name data and file metadata without heavy 3D or texture image decoding.
      */
     fun listSaves(): List<Ps2Save> {
+        if (!isFormatted) return emptyList()
         val saves = mutableListOf<Ps2Save>()
         val seenNames = mutableSetOf<String>()
 
@@ -763,6 +769,7 @@ class Ps2Memcard private constructor(
      * and DF_0400 flags expected by the PS2 BIOS browser.
      */
     fun makeDir(dirName: String): Long {
+        if (!isFormatted) return 0xFFFFFFFFL
         val rootCluster = if (superBlock.rootdirCluster >= allocOffset) {
             superBlock.rootdirCluster - allocOffset
         } else {
@@ -841,6 +848,7 @@ class Ps2Memcard private constructor(
      * Writes a file into a directory matching myMCpp's writeFile.
      */
     fun writeFile(dirCluster: Long, fileName: String, data: ByteArray, entryTemplate: Ps2DirectoryEntry? = null): Boolean {
+        if (!isFormatted) return false
         val clustersNeeded = if (data.isNotEmpty()) (data.size + clusterSize - 1) / clusterSize else 0
         val fileClusters = if (clustersNeeded > 0) {
             allocateClusters(clustersNeeded)
@@ -906,6 +914,7 @@ class Ps2Memcard private constructor(
      * Deletes a save folder and frees all its clusters.
      */
     fun deleteSave(saveName: String): Boolean {
+        if (!isFormatted) return false
         val rootCluster = if (superBlock.rootdirCluster >= allocOffset) {
             superBlock.rootdirCluster - allocOffset
         } else {
@@ -957,6 +966,7 @@ class Ps2Memcard private constructor(
      * Imports a save file archive (.psu or .max) onto this memory card.
      */
     fun importSave(saveData: ByteArray): Boolean {
+        if (!isFormatted) return false
         val unpacked = when {
             MaxHandler.isMax(saveData) -> MaxHandler.unpackMax(saveData)
             else -> PsuHandler.unpackPsu(saveData)
@@ -1042,6 +1052,7 @@ class Ps2Memcard private constructor(
      * Exports a save folder as a .psu byte array.
      */
     fun exportSaveAsPsu(saveName: String): ByteArray? {
+        if (!isFormatted) return null
         val save = listSaves().firstOrNull { it.directoryName == saveName } ?: return null
         val filesMap = mutableMapOf<String, ByteArray>()
         for (f in save.files) {
@@ -1055,6 +1066,7 @@ class Ps2Memcard private constructor(
      * Exports a save folder as an Action Replay MAX (.max) byte array.
      */
     fun exportSaveAsMax(saveName: String): ByteArray? {
+        if (!isFormatted) return null
         val save = listSaves().firstOrNull { it.directoryName == saveName } ?: return null
         val filesMap = mutableMapOf<String, ByteArray>()
         for (f in save.files) {
@@ -1069,6 +1081,22 @@ class Ps2Memcard private constructor(
      * Calculates card statistics: free clusters, used clusters, free space.
      */
     fun getStats(): CardStats {
+        if (!isFormatted) {
+            return CardStats(
+                totalClusters = totalClusters,
+                allocatableClusters = 0,
+                allocatedClusters = 0,
+                freeClusters = 0,
+                totalSpaceBytes = totalCapacityBytes,
+                usedSpaceBytes = 0,
+                freeSpaceBytes = totalCapacityBytes,
+                badBlocksCount = 0,
+                hasEcc = hasEcc,
+                pageSize = if (hasEcc) 528 else 512,
+                clusterSize = clusterSize,
+                isFormatted = false
+            )
+        }
         var allocated = 0L
         var free = 0L
         val maxAllocatable = superBlock.allocatableClusters
@@ -1193,6 +1221,20 @@ class Ps2Memcard private constructor(
             }
 
             if (sb == null || hasEcc == null) {
+                // Detect unformatted memory card images (e.g. PCSX2 / ARMSX2 standard erase state filled with 0xFF)
+                val size = workingData.size
+                val isEccCandidate = (size % 528 == 0) && (size >= 8 * 1024 * 528 * 2)
+                val isRawCandidate = (size % 512 == 0) && (size >= 8 * 1024 * 512 * 2)
+
+                if (isEccCandidate || isRawCandidate) {
+                    val detectedEcc = isEccCandidate
+                    val pageSize = if (detectedEcc) 528 else 512
+                    val totalPages = size / pageSize
+                    val totalClusters = (totalPages / 2).toLong()
+                    val unformattedSb = Ps2SuperBlock.createUnformatted(totalClusters, detectedEcc)
+                    return Ps2Memcard(workingData, hasEcc = detectedEcc, superBlock = unformattedSb)
+                }
+
                 return null
             }
 
@@ -1217,7 +1259,8 @@ data class CardStats(
     val badBlocksCount: Int,
     val hasEcc: Boolean,
     val pageSize: Int,
-    val clusterSize: Int
+    val clusterSize: Int,
+    val isFormatted: Boolean = true
 ) {
     val totalSpaceKb: Long get() = totalSpaceBytes / 1024
     val usedSpaceKb: Long get() = usedSpaceBytes / 1024

@@ -11,6 +11,7 @@ import com.armsx2.memcards.core.Ps2Timestamp
 import com.armsx2.memcards.core.PsuHandler
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -365,6 +366,125 @@ class Ps2MemcardTest {
         val sub2 = card.readDirents(updatedRoot[2].cluster)
         assertEquals(2, sub2[0].dirEntry.toInt())
         assertEquals(dir2, updatedRoot[2].name)
+    }
+
+    @Test
+    fun testCreateUnformattedCard() {
+        val unformatted = MemcardFormatter.createUnformatted(sizeInMB = 8, useEcc = true)
+        assertEquals(8650752, unformatted.size)
+        // Verify 100% 0xFF bytes (matching armsx_mcd001.ps2 and PCSX2's FileMcd_CreateNewCard)
+        for (i in unformatted.indices step 4096) {
+            assertEquals(0xFF.toByte(), unformatted[i])
+        }
+
+        val card = Ps2Memcard.open(unformatted)
+        assertNotNull(card)
+        assertFalse(card!!.isFormatted)
+        assertTrue(card.hasEcc)
+        assertEquals(8192L, card.totalClusters)
+        assertEquals(0, card.listSaves().size)
+
+        val stats = card.getStats()
+        assertFalse(stats.isFormatted)
+        assertEquals(8388608L, stats.totalSpaceBytes)
+
+        // Operations that require a filesystem should safely reject or fail
+        assertFalse(card.writeFile(0, "test.bin", ByteArray(10)))
+        assertFalse(card.deleteSave("test"))
+        assertEquals(0xFFFFFFFFL, card.makeDir("test"))
+        assertFalse(card.importSave(ByteArray(100)))
+    }
+
+    @Test
+    fun testCreateUnformattedRawCard() {
+        val unformattedRaw = MemcardFormatter.createUnformatted(sizeInMB = 8, useEcc = false)
+        assertEquals(8388608, unformattedRaw.size)
+        for (i in unformattedRaw.indices step 4096) {
+            assertEquals(0xFF.toByte(), unformattedRaw[i])
+        }
+
+        val card = Ps2Memcard.open(unformattedRaw)
+        assertNotNull(card)
+        assertFalse(card!!.isFormatted)
+        assertFalse(card.hasEcc)
+        assertEquals(8192L, card.totalClusters)
+        assertEquals(0, card.listSaves().size)
+    }
+
+    @Test
+    fun testFormattedCardHasErasedUnallocatedClusters() {
+        val formatted = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
+        assertEquals(8650752, formatted.size)
+
+        val card = Ps2Memcard.open(formatted)
+        assertNotNull(card)
+        assertTrue(card!!.isFormatted)
+        assertTrue(card.hasEcc)
+
+        // Verify unallocated clusters have 0xFF (flash erased state)
+        // Cluster 100 is an unallocated cluster (allocOffset is 41, root dir is 41)
+        val cluster100Data = card.readCluster(100)
+        assertEquals(1024, cluster100Data.size)
+        for (b in cluster100Data) {
+            assertEquals(0xFF.toByte(), b)
+        }
+
+        // Verify spare area of an unallocated page (e.g., page 200 = cluster 100 page 0)
+        // Page 200 raw offset is 200 * 528 = 105600
+        val page200Offset = 200 * 528
+        for (i in 0 until 528) {
+            assertEquals(0xFF.toByte(), formatted[page200Offset + i])
+        }
+
+        // Verify backup blocks 1 and 2 (block 1023 and 1022) are also erased (0xFF)
+        // Block 1023 cluster is 1023 * 8 = 8184
+        val backupClusterData = card.readCluster(8184)
+        for (b in backupClusterData) {
+            assertEquals(0xFF.toByte(), b)
+        }
+    }
+
+    @Test
+    fun testFormatUnformattedCardAndImportSave() {
+        // 1. Start with an unformatted card (as created by PCSX2 or our createUnformatted)
+        val unformatted = MemcardFormatter.createUnformatted(sizeInMB = 8, useEcc = true)
+        val unformattedCard = Ps2Memcard.open(unformatted)
+        assertNotNull(unformattedCard)
+        assertFalse(unformattedCard!!.isFormatted)
+
+        // 2. Format the card
+        val formattedBytes = MemcardFormatter.format(
+            sizeInMB = unformattedCard.totalCapacityMb.toInt(),
+            useEcc = unformattedCard.hasEcc
+        )
+        val formattedCard = Ps2Memcard.open(formattedBytes)
+        assertNotNull(formattedCard)
+        assertTrue(formattedCard!!.isFormatted)
+        assertEquals(0, formattedCard.listSaves().size)
+
+        // 3. Import a save onto formatted card
+        val dirName = "BASLUS-00001"
+        val testPayload = "Hello PS2 Save".toByteArray(Charsets.UTF_8)
+        val psuBytes = PsuHandler.packPsu(
+            saveName = dirName,
+            dirEntry = Ps2DirectoryEntry(
+                mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS,
+                length = 3,
+                created = Ps2Timestamp.now(),
+                cluster = 0,
+                dirEntry = 0,
+                modified = Ps2Timestamp.now(),
+                attr = 0,
+                name = dirName
+            ),
+            files = mapOf("data.bin" to testPayload)
+        )
+        assertTrue(formattedCard.importPsu(psuBytes))
+
+        val saves = formattedCard.listSaves()
+        assertEquals(1, saves.size)
+        assertEquals(dirName, saves[0].directoryName)
+        assertArrayEquals(testPayload, formattedCard.getSaveFileBytes(dirName, "data.bin"))
     }
 }
 

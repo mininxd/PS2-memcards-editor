@@ -181,12 +181,16 @@ class MemcardViewModel : ViewModel() {
         }
     }
 
-    fun createNewCard(name: String, sizeInMB: Int, useEcc: Boolean) {
+    fun createNewCard(name: String, sizeInMB: Int, useEcc: Boolean, formatted: Boolean = false) {
         viewModelScope.launch {
             _uiState.value = CardUiState.Loading("Creating $name (${sizeInMB}MB)...")
             withContext(Dispatchers.Default) {
                 try {
-                    val bytes = MemcardFormatter.format(sizeInMB, useEcc)
+                    val bytes = if (formatted) {
+                        MemcardFormatter.format(sizeInMB, useEcc)
+                    } else {
+                        MemcardFormatter.createUnformatted(sizeInMB, useEcc)
+                    }
                     val card = Ps2Memcard.open(bytes)
                     if (card != null) {
                         val saves = card.listSaves()
@@ -201,7 +205,7 @@ class MemcardViewModel : ViewModel() {
                         )
                         _snackbarMessage.value = "Created $name successfully!"
                     } else {
-                        _uiState.value = CardUiState.Error("Failed to format memory card.")
+                        _uiState.value = CardUiState.Error("Failed to initialize memory card.")
                     }
                 } catch (e: Exception) {
                     _uiState.value = CardUiState.Error("Creation error: ${e.message}")
@@ -262,6 +266,10 @@ class MemcardViewModel : ViewModel() {
 
     fun importSave(saveBytes: ByteArray) {
         val current = _uiState.value as? CardUiState.Loaded ?: return
+        if (!current.stats.isFormatted) {
+            _snackbarMessage.value = "Card must be formatted before importing saves."
+            return
+        }
         viewModelScope.launch {
             _uiState.value = CardUiState.Loading("Importing save (.psu / .max)...")
             withContext(Dispatchers.Default) {

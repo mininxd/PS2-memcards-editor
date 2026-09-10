@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.armsx2.memcards.core.CardStats
 import com.armsx2.memcards.core.Ps2Save
@@ -61,6 +62,7 @@ fun MainScreen(
     hasUnsavedChanges: Boolean = false,
     isInMemoryOnly: Boolean = false,
     onSaveCard: () -> Unit = {},
+    onFormatCard: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val filteredSaves = saves.filter { save ->
@@ -91,15 +93,27 @@ fun MainScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onImportPsu,
-                expanded = true,
-                icon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
-                text = { Text("Import Save") },
-                shape = RoundedCornerShape(14.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
+            if (!stats.isFormatted) {
+                ExtendedFloatingActionButton(
+                    onClick = onFormatCard,
+                    expanded = true,
+                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
+                    text = { Text("Format Card") },
+                    shape = RoundedCornerShape(14.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                ExtendedFloatingActionButton(
+                    onClick = onImportPsu,
+                    expanded = true,
+                    icon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
+                    text = { Text("Import Save") },
+                    shape = RoundedCornerShape(14.dp),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     ) { paddingValues ->
         Column(
@@ -155,6 +169,46 @@ fun MainScreen(
                 }
             }
 
+            // Unformatted Card Warning Banner
+            if (!stats.isFormatted) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Unformatted Memory Card",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "Card is in clean flash-erased state (0xFF). Format now to use in this app, or format inside PS2 BIOS.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onFormatCard,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Format", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
             // Storage Bar
             StorageBar(
                 stats = stats,
@@ -195,9 +249,16 @@ fun MainScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (searchQuery.isNotEmpty()) "No saves matching '$searchQuery'" else "No saves in this memory card",
+                        text = if (!stats.isFormatted) {
+                            "Card is unformatted.\nFormat it to start storing saves."
+                        } else if (searchQuery.isNotEmpty()) {
+                            "No saves matching '$searchQuery'"
+                        } else {
+                            "No saves in this memory card"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.outline,
+                        textAlign = TextAlign.Center
                     )
                 }
             } else {

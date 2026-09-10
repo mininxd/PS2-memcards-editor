@@ -5,9 +5,44 @@ import java.nio.ByteOrder
 
 /**
  * Creates and formats PS2 memory card images (8MB, 16MB, 32MB, 64MB, 128MB).
+ *
+ * Supports two creation strategies:
+ * 1. [createUnformatted]: Creates an unformatted card image filled with 0xFF (flash erased state).
+ *    Byte-for-byte identical to the cards created by PCSX2 / ARMSX2 (FileMcd_CreateNewCard).
+ *    When loaded in PS2 BIOS, the PS2 detects it as unformatted and can format it cleanly.
+ * 2. [format]: Creates a pre-formatted PS2 memory card filesystem image with Superblock,
+ *    IFC, FAT, and Root Directory, while ensuring all unallocated flash blocks, spare areas,
+ *    and backup blocks remain in the clean erased flash state (0xFF).
  */
 object MemcardFormatter {
 
+    /**
+     * Creates a standard unformatted memory card image filled entirely with 0xFF (flash erased state).
+     *
+     * @param sizeInMB Card capacity in megabytes (8, 16, 32, 64, or 128).
+     * @param useEcc If true, uses 528 bytes per page (required for standard PCSX2 / ARMSX2 .ps2 files).
+     *               If false, uses 512 bytes per page (RAW format for .bin / .mc2 files).
+     */
+    fun createUnformatted(sizeInMB: Int = 8, useEcc: Boolean = true): ByteArray {
+        val validSize = when (sizeInMB) {
+            16 -> 16
+            32 -> 32
+            64 -> 64
+            128 -> 128
+            else -> 8
+        }
+        val rawPageSize = if (useEcc) 528 else 512
+        val totalPages = validSize * 2048 // 2048 pages per MB
+        val totalBytes = totalPages * rawPageSize
+        val data = ByteArray(totalBytes)
+        java.util.Arrays.fill(data, 0xFF.toByte())
+        return data
+    }
+
+    /**
+     * Creates and formats a memory card image with a valid PS2 filesystem.
+     * All unallocated sectors and spare areas are kept in the clean erased flash state (0xFF).
+     */
     fun format(sizeInMB: Int = 8, useEcc: Boolean = true): ByteArray {
         val validSize = when (sizeInMB) {
             16 -> 16
@@ -72,51 +107,78 @@ object MemcardFormatter {
             cardFlags = if (useEcc) 0x2B else 0x2A
         )
 
-        // Raw buffer in memory (512 bytes per page)
-        val rawSize = totalClusters * clusterSize
-        val rawData = ByteArray(rawSize)
+        val rawPageSize = if (useEcc) 528 else 512
+        val totalPages = totalClusters * pagesPerCluster
+        val outData = ByteArray(totalPages * rawPageSize)
+        // Flash memory begins in erased state (0xFF)
+        java.util.Arrays.fill(outData, 0xFF.toByte())
 
-        // Write Superblock at Cluster 0, Page 0
-        val sbBytes = superBlock.toByteArray()
-        System.arraycopy(sbBytes, 0, rawData, 0, sbBytes.size)
-
-        // Write Indirect FAT
-        var currentFatCluster = fatClusterStart.toInt()
-        val indirectBuf = ByteBuffer.allocate(indirectClusters * clusterSize).order(ByteOrder.LITTLE_ENDIAN)
-        for (i in 0 until indirectClusters) {
-            for (j in 0 until epc) {
-                if (currentFatCluster < allocOffset) {
-                    indirectBuf.putInt(currentFatCluster++)
-                } else {
-                    indirectBuf.putInt(0xFFFFFFFF.toInt())
-                }
+        fun writePage(pageIndex: Int, pageData: ByteArray) {
+            val offset = pageIndex * rawPageSize
+            System.arraycopy(pageData, 0, outData, offset, 512)
+            if (useEcc) {
+                val spare = Ps2Ecc.generateSpareArea(pageData)
+                System.arraycopy(spare, 0, outData, offset + 512, 16)
             }
         }
-        val ifcBytes = indirectBuf.array()
-        System.arraycopy(ifcBytes, 0, rawData, (ifcClusterStart * clusterSize).toInt(), ifcBytes.size)
 
-        // Write FAT Table
-        // Root directory occupies cluster 0: FAT[0] = 0xFFFFFFFF (bit 31 set + EOF)
-        // All other clusters free: FAT[i] = 0x7FFFFFFF (PS2MC_FAT_CHAIN_END_UNALLOC)
-        val fatBuf = ByteBuffer.allocate(fatClusters * clusterSize).order(ByteOrder.LITTLE_ENDIAN)
-        val totalFatEntries = (fatClusters * clusterSize) / 4
-        for (i in 0 until totalFatEntries) {
-            fatBuf.putInt(0x7FFFFFFF)
+        fun writeCluster(clusterIndex: Long, clusterData: ByteArray) {
+            val startPage = (clusterIndex * pagesPerCluster).toInt()
+            for (p in 0 until pagesPerCluster) {
+                val pData = ByteArray(512)
+                val srcPos = p * 512
+                if (srcPos < clusterData.size) {
+                    val len = minOf(512, clusterData.size - srcPos)
+                    System.arraycopy(clusterData, srcPos, pData, 0, len)
+                }
+                writePage(startPage + p, pData)
+            }
         }
-        fatBuf.putInt(0, 0xFFFFFFFF.toInt()) // Cluster 0 (root dir)
+
+        // 1. Write Superblock at Page 0
+        val sbPage = ByteArray(512)
+        val sbBytes = superBlock.toByteArray()
+        System.arraycopy(sbBytes, 0, sbPage, 0, sbBytes.size)
+        writePage(0, sbPage)
+
+        // 2. Write Indirect FAT Clusters
+        var currentFatCluster = fatClusterStart.toInt()
+        for (i in 0 until indirectClusters) {
+            val ifcBuf = ByteBuffer.allocate(clusterSize).order(ByteOrder.LITTLE_ENDIAN)
+            for (j in 0 until epc) {
+                if (currentFatCluster < allocOffset) {
+                    ifcBuf.putInt(currentFatCluster++)
+                } else {
+                    ifcBuf.putInt(0xFFFFFFFF.toInt())
+                }
+            }
+            writeCluster(ifcClusterStart + i, ifcBuf.array())
+        }
+
+        // 3. Write FAT Clusters
+        val totalFatEntries = fatClusters * epc
+        val fatBuf = ByteBuffer.allocate(fatClusters * clusterSize).order(ByteOrder.LITTLE_ENDIAN)
+        for (i in 0 until totalFatEntries) {
+            when {
+                i == 0 -> fatBuf.putInt(0xFFFFFFFF.toInt()) // Cluster 0 (root dir EOF)
+                i < allocEnd -> fatBuf.putInt(0x7FFFFFFF)    // Free allocatable cluster
+                else -> fatBuf.putInt(0)                     // Past allocEnd (unallocated/reserved)
+            }
+        }
         val fatBytes = fatBuf.array()
-        System.arraycopy(fatBytes, 0, rawData, (fatClusterStart * clusterSize).toInt(), fatBytes.size)
+        for (i in 0 until fatClusters) {
+            val cData = ByteArray(clusterSize)
+            System.arraycopy(fatBytes, i * clusterSize, cData, 0, clusterSize)
+            writeCluster(fatClusterStart + i, cData)
+        }
 
-        // Write Root Directory (Cluster allocOffset)
-        val rootDirPos = (allocOffset * clusterSize).toInt()
+        // 4. Write Root Directory at cluster allocOffset
         val now = Ps2Timestamp.now()
-
-        // Root dir "." entry
         val rootDot = Ps2DirectoryEntry(
             mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or
                     Ps2DirectoryEntry.DF_READ or Ps2DirectoryEntry.DF_WRITE or
                     Ps2DirectoryEntry.DF_EXECUTE or Ps2DirectoryEntry.DF_0400,
-            length = 2, // "." and ".."
+            length = 2,
             created = now,
             cluster = 0,
             dirEntry = 0,
@@ -124,10 +186,6 @@ object MemcardFormatter {
             attr = 0,
             name = "."
         )
-        val rootDotBytes = rootDot.toByteArray()
-        System.arraycopy(rootDotBytes, 0, rawData, rootDirPos, rootDotBytes.size)
-
-        // Root dir ".." entry (Sony mcman McCreateDirentry: mode = 0xA426, hidden, write/execute, no read)
         val rootDotDot = Ps2DirectoryEntry(
             mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or
                     Ps2DirectoryEntry.DF_WRITE or Ps2DirectoryEntry.DF_EXECUTE or
@@ -140,22 +198,13 @@ object MemcardFormatter {
             attr = 0,
             name = ".."
         )
-        val rootDotDotBytes = rootDotDot.toByteArray()
-        System.arraycopy(rootDotDotBytes, 0, rawData, rootDirPos + Ps2DirectoryEntry.ENTRY_SIZE, rootDotDotBytes.size)
+        val rootDotPage = rootDot.toByteArray()
+        val rootDotDotPage = rootDotDot.toByteArray()
+        writePage((allocOffset * pagesPerCluster).toInt(), rootDotPage)
+        writePage((allocOffset * pagesPerCluster + 1).toInt(), rootDotDotPage)
 
-        // Backup block 2 must be in erased flash state (all 0xFF including spare area)
-        // Sony mcman checkBackupBlocks checks backup block 2 to ensure no programming was interrupted
-        return if (useEcc) {
-            val eccData = Ps2Ecc.convertRawToEcc(rawData)
-            val backup2Start = (backupBlock2 * pagesPerBlock * 528).toInt()
-            val backup2Len = pagesPerBlock * 528
-            java.util.Arrays.fill(eccData, backup2Start, backup2Start + backup2Len, 0xFF.toByte())
-            eccData
-        } else {
-            val backup2Start = (backupBlock2 * pagesPerBlock * 512).toInt()
-            val backup2Len = pagesPerBlock * 512
-            java.util.Arrays.fill(rawData, backup2Start, backup2Start + backup2Len, 0xFF.toByte())
-            rawData
-        }
+        // All other clusters (unused clusters 1..7, allocatable clusters 42..8134,
+        // reserved clusters, and backup blocks 1 and 2) remain cleanly in erased state (0xFF)
+        return outData
     }
 }
