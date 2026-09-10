@@ -486,5 +486,130 @@ class Ps2MemcardTest {
         assertEquals(dirName, saves[0].directoryName)
         assertArrayEquals(testPayload, formattedCard.getSaveFileBytes(dirName, "data.bin"))
     }
+
+    @Test
+    fun testDirectoryEntryOffsetParsing() {
+        val now = Ps2Timestamp.now()
+        val entry1 = Ps2DirectoryEntry(
+            mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400,
+            length = 5,
+            created = now,
+            cluster = 42,
+            dirEntry = 2,
+            modified = now,
+            attr = 0,
+            name = "FIRST_ENTRY"
+        )
+        val entry2 = Ps2DirectoryEntry(
+            mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400,
+            length = 99,
+            created = now,
+            cluster = 108,
+            dirEntry = 3,
+            modified = now,
+            attr = 0,
+            name = "SECOND_ENTRY"
+        )
+
+        val buffer = ByteArray(1024)
+        System.arraycopy(entry1.toByteArray(), 0, buffer, 0, 512)
+        System.arraycopy(entry2.toByteArray(), 0, buffer, 512, 512)
+
+        val parsed1 = Ps2DirectoryEntry.parse(buffer, 0)
+        val parsed2 = Ps2DirectoryEntry.parse(buffer, 512)
+
+        assertNotNull(parsed1)
+        assertNotNull(parsed2)
+
+        assertEquals("FIRST_ENTRY", parsed1!!.name)
+        assertEquals(42L, parsed1.cluster)
+        assertEquals(5L, parsed1.length)
+        assertEquals(2L, parsed1.dirEntry)
+
+        // Verify that parsing at offset 512 does NOT read cluster or length from entry 1 at offset 0
+        assertEquals("SECOND_ENTRY", parsed2!!.name)
+        assertEquals(108L, parsed2.cluster)
+        assertEquals(99L, parsed2.length)
+        assertEquals(3L, parsed2.dirEntry)
+    }
+
+    @Test
+    fun testMultipleSaveImportsSequentialNoCollision() {
+        val cardData = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
+        val card = Ps2Memcard.open(cardData)!!
+
+        val mkPayload = ByteArray(5000) { 0x11.toByte() }
+        val mkIconSys = createMockIconSys("Mortal Kombat", "game.icn")
+        val psu1 = PsuHandler.packPsu(
+            saveName = "BASLUS-21087",
+            dirEntry = Ps2DirectoryEntry(
+                mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS,
+                length = 4,
+                created = Ps2Timestamp.now(),
+                cluster = 0,
+                dirEntry = 0,
+                modified = Ps2Timestamp.now(),
+                attr = 0,
+                name = "BASLUS-21087"
+            ),
+            files = mapOf("icon.sys" to mkIconSys, "save.bin" to mkPayload)
+        )
+        assertTrue(card.importPsu(psu1))
+
+        val blackPayload = ByteArray(2000) { 0x22.toByte() }
+        val blackIconSys = createMockIconSys("BLACK", "view.ico")
+        val psu2 = PsuHandler.packPsu(
+            saveName = "BESLES-54030",
+            dirEntry = Ps2DirectoryEntry(
+                mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS,
+                length = 4,
+                created = Ps2Timestamp.now(),
+                cluster = 0,
+                dirEntry = 0,
+                modified = Ps2Timestamp.now(),
+                attr = 0,
+                name = "BESLES-54030"
+            ),
+            files = mapOf("icon.sys" to blackIconSys, "view.ico" to ByteArray(100), "black.bin" to blackPayload)
+        )
+        assertTrue(card.importPsu(psu2))
+
+        val saves = card.listSaves()
+        assertEquals(2, saves.size)
+
+        val save1 = saves.firstOrNull { it.directoryName == "BASLUS-21087" }
+        val save2 = saves.firstOrNull { it.directoryName == "BESLES-54030" }
+
+        assertNotNull(save1)
+        assertNotNull(save2)
+
+        // Verify titles are unique and not duplicated
+        assertEquals("Mortal Kombat", save1!!.title)
+        assertEquals("BLACK", save2!!.title)
+
+        // Verify clusters are unique
+        assertTrue(save1.dirEntry.cluster != save2!!.dirEntry.cluster)
+
+        // Verify sizes are unique
+        assertTrue(save1.sizeInBytes != save2.sizeInBytes)
+
+        // Verify files are intact and separated
+        assertArrayEquals(mkPayload, card.getSaveFileBytes("BASLUS-21087", "save.bin"))
+        assertArrayEquals(blackPayload, card.getSaveFileBytes("BESLES-54030", "black.bin"))
+    }
+
+    private fun createMockIconSys(title: String, iconName: String): ByteArray {
+        val data = ByteArray(964)
+        data[0] = 'P'.code.toByte()
+        data[1] = 'S'.code.toByte()
+        data[2] = '2'.code.toByte()
+        data[3] = 'D'.code.toByte()
+        val titleBytes = title.toByteArray(Charsets.US_ASCII)
+        System.arraycopy(titleBytes, 0, data, 0xC0, minOf(titleBytes.size, 64))
+        val iconBytes = iconName.toByteArray(Charsets.US_ASCII)
+        System.arraycopy(iconBytes, 0, data, 0x104, minOf(iconBytes.size, 64))
+        return data
+    }
 }
+
 

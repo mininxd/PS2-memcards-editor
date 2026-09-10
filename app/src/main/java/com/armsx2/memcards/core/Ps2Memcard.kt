@@ -443,7 +443,9 @@ class Ps2Memcard private constructor(
             }
         }
         if (updated) {
-            return writeDirents(ancestor, ancestorEntries)
+            val ok = writeDirents(ancestor, ancestorEntries)
+            if (ok) writeFatToCard()
+            return ok
         }
         return true
     }
@@ -802,9 +804,7 @@ class Ps2Memcard private constructor(
         newDirEntries.add(dotEntry)
 
         val dotDotEntry = Ps2DirectoryEntry(
-            mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or
-                    Ps2DirectoryEntry.DF_WRITE or Ps2DirectoryEntry.DF_EXECUTE or
-                    Ps2DirectoryEntry.DF_0400 or Ps2DirectoryEntry.DF_HIDDEN,
+            mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400,
             length = 0,
             created = now,
             cluster = 0,
@@ -1019,7 +1019,7 @@ class Ps2Memcard private constructor(
 
         // 3. Update the save directory's root directory entry with the original mode, timestamps, and attr
         val rootEntries = readDirents(rootCluster).toMutableList()
-        val saveEntryIdx = rootEntries.indexOfFirst { it.isDirectory && it.cluster == dirCluster }
+        val saveEntryIdx = rootEntries.indexOfFirst { it.isDirectory && (it.name == saveName || it.cluster == dirCluster) }
         if (saveEntryIdx != -1) {
             val currentEntry = rootEntries[saveEntryIdx]
             val origMode = unpacked.dirEntry.mode
@@ -1027,6 +1027,7 @@ class Ps2Memcard private constructor(
             val newMode = (origMode and Ps2DirectoryEntry.DF_PROTECTED.inv()) or
                     (Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400)
             rootEntries[saveEntryIdx] = currentEntry.copy(
+                cluster = dirCluster,
                 mode = newMode,
                 created = unpacked.dirEntry.created,
                 modified = unpacked.dirEntry.modified,

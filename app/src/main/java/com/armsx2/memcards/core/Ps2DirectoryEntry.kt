@@ -89,30 +89,24 @@ data class Ps2DirectoryEntry(
 
         fun parse(data: ByteArray, offset: Int = 0): Ps2DirectoryEntry? {
             if (offset < 0 || offset + ENTRY_SIZE > data.size) return null
-            val buf = ByteBuffer.wrap(data, offset, ENTRY_SIZE).order(ByteOrder.LITTLE_ENDIAN)
 
-            val mode = buf.short.toInt() and 0xFFFF
-            buf.position(0x04)
-            val length = buf.int.toLong() and 0xFFFFFFFFL
+            fun readU16(off: Int): Int =
+                (data[off].toInt() and 0xFF) or ((data[off + 1].toInt() and 0xFF) shl 8)
 
-            val createdBytes = ByteArray(8)
-            buf.position(0x08)
-            buf.get(createdBytes)
-            val created = Ps2Timestamp.parse(createdBytes)
+            fun readU32(off: Int): Long =
+                (data[off].toLong() and 0xFFL) or
+                ((data[off + 1].toLong() and 0xFFL) shl 8) or
+                ((data[off + 2].toLong() and 0xFFL) shl 16) or
+                ((data[off + 3].toLong() and 0xFFL) shl 24)
 
-            buf.position(0x10)
-            val cluster = buf.int.toLong() and 0xFFFFFFFFL
+            val mode = readU16(offset + 0x00)
+            val length = readU32(offset + 0x04)
 
-            buf.position(0x14)
-            val dirEntry = buf.int.toLong() and 0xFFFFFFFFL
-
-            val modBytes = ByteArray(8)
-            buf.position(0x18)
-            buf.get(modBytes)
-            val modified = Ps2Timestamp.parse(modBytes)
-
-            buf.position(0x20)
-            val attr = buf.int.toLong() and 0xFFFFFFFFL
+            val created = Ps2Timestamp.parse(data.copyOfRange(offset + 0x08, offset + 0x10))
+            val cluster = readU32(offset + 0x10)
+            val dirEntry = readU32(offset + 0x14)
+            val modified = Ps2Timestamp.parse(data.copyOfRange(offset + 0x18, offset + 0x20))
+            val attr = readU32(offset + 0x20)
 
             val maxNameLen = ENTRY_SIZE - 0x40
             var nameLen = 0
@@ -190,9 +184,7 @@ data class Ps2Timestamp(
             val hour = bytes[3].toInt() and 0xFF
             val day = bytes[4].toInt() and 0xFF
             val month = bytes[5].toInt() and 0xFF
-            val buf = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            buf.position(6)
-            val year = buf.short.toInt() and 0xFFFF
+            val year = (bytes[6].toInt() and 0xFF) or ((bytes[7].toInt() and 0xFF) shl 8)
             return Ps2Timestamp(
                 second = minOf(59, sec),
                 minute = minOf(59, min),
