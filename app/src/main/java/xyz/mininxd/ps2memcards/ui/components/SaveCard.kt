@@ -79,13 +79,19 @@ fun SaveCard(
         ) {
             // Icon thumbnail
             if (imageBitmap != null) {
-                Image(
-                    bitmap = imageBitmap,
-                    contentDescription = save.displayTitle,
+                Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(8.dp))
-                )
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = imageBitmap,
+                        contentDescription = save.displayTitle,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             } else {
                 Box(
                     modifier = Modifier

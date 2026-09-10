@@ -78,13 +78,19 @@ fun SaveDetailModal(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (imageBitmap != null) {
-                    Image(
-                        bitmap = imageBitmap,
-                        contentDescription = save.displayTitle,
+                    Box(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(RoundedCornerShape(16.dp))
-                    )
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            bitmap = imageBitmap,
+                            contentDescription = save.displayTitle,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 } else {
                     Box(
                         modifier = Modifier
