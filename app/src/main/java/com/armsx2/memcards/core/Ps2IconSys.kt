@@ -73,20 +73,20 @@ data class Ps2IconSys(
                 }
             }
 
-            // Read icon filename at 0x100 (64 bytes)
-            buf.position(0x100)
+            // Read icon filename at 0x104 (64 bytes, 0x100..0x103 is reserved/count)
+            buf.position(0x104)
             val iconFileBytes = ByteArray(64)
             buf.get(iconFileBytes)
             val iconFile = readNullTerminatedAscii(iconFileBytes)
 
-            // Read copy icon filename at 0x140 (64 bytes)
-            buf.position(0x140)
+            // Read copy icon filename at 0x144 (64 bytes, 0x140..0x143 is reserved/count)
+            buf.position(0x144)
             val copyFileBytes = ByteArray(64)
             buf.get(copyFileBytes)
             val copyIconFile = readNullTerminatedAscii(copyFileBytes)
 
-            // Read delete icon filename at 0x180 (64 bytes)
-            buf.position(0x180)
+            // Read delete icon filename at 0x184 (64 bytes, 0x180..0x183 is reserved/count)
+            buf.position(0x184)
             val delFileBytes = ByteArray(64)
             buf.get(delFileBytes)
             val deleteIconFile = readNullTerminatedAscii(delFileBytes)

@@ -198,6 +198,9 @@ class Ps2Memcard private constructor(
                 val fatData = ByteArray(clusterSize)
                 val fatBuf = ByteBuffer.wrap(fatData).order(ByteOrder.LITTLE_ENDIAN)
                 val entriesInCluster = minOf(epc, fatData.size / 4)
+                for (k in 0 until entriesInCluster) {
+                    fatBuf.putInt(k * 4, 0x7FFFFFFF)
+                }
 
                 for (k in 0 until entriesInCluster) {
                     if (fatEntryIdx >= fatTable.size) break
@@ -346,6 +349,73 @@ class Ps2Memcard private constructor(
     }
 
     /**
+     * Reads all directory slots (including deleted and inactive ones) from a directory cluster.
+     * Preserves physical slot indices required for in-place directory modifications and dirEntry backlinks.
+     */
+    fun readAllDirents(dirCluster: Long): List<Ps2DirectoryEntry> {
+        val maxAllocatable = superBlock.allocatableClusters
+        if (dirCluster < 0 || dirCluster >= maxAllocatable || dirCluster == 0xFFFFFFFFL) return emptyList()
+
+        val entries = mutableListOf<Ps2DirectoryEntry>()
+        var currentCluster = dirCluster
+        var iteration = 0
+        val visited = mutableSetOf<Long>()
+
+        while (currentCluster != 0xFFFFFFFFL && currentCluster in 0 until maxAllocatable && !visited.contains(currentCluster)) {
+            visited.add(currentCluster)
+            iteration++
+            if (iteration > 1000) break
+
+            val diskCluster = allocOffset + currentCluster
+            if (diskCluster >= totalClusters) break
+
+            val clusterData = readCluster(diskCluster)
+            if (clusterData.isEmpty()) break
+
+            val entriesPerCluster = maxOf(1, clusterSize / Ps2DirectoryEntry.ENTRY_SIZE)
+            for (i in 0 until entriesPerCluster) {
+                val offset = i * Ps2DirectoryEntry.ENTRY_SIZE
+                if (offset + Ps2DirectoryEntry.ENTRY_SIZE > clusterData.size) break
+
+                val entry = Ps2DirectoryEntry.parse(clusterData, offset)
+                if (entry != null) {
+                    entries.add(entry)
+                } else {
+                    entries.add(
+                        Ps2DirectoryEntry(
+                            mode = 0,
+                            length = 0,
+                            created = Ps2Timestamp.now(),
+                            cluster = 0xFFFFFFFFL,
+                            dirEntry = 0,
+                            modified = Ps2Timestamp.now(),
+                            attr = 0,
+                            name = ""
+                        )
+                    )
+                }
+            }
+
+            val rawNext = getFatEntry(currentCluster)
+            val next = rawNext and 0x7FFFFFFFL
+            if (next == 0x7FFFFFFFL || rawNext == 0xFFFFFFFFL || next >= maxAllocatable) {
+                break
+            }
+            currentCluster = next
+        }
+
+        // If directory specifies a length in '.' entry (slot 0), trim trailing unused slots beyond that length
+        if (entries.isNotEmpty() && entries[0].name == "." && entries[0].length > 0) {
+            val expectedLen = entries[0].length.toInt()
+            while (entries.size > expectedLen && !entries.last().isExists && entries.last().name.isBlank()) {
+                entries.removeAt(entries.size - 1)
+            }
+        }
+
+        return entries
+    }
+
+    /**
      * Writes directory entries to a directory starting at `dirCluster` (relative to allocOffset).
      * Follows or expands the FAT cluster chain matching myMCpp's writeDirents implementation.
      */
@@ -408,13 +478,13 @@ class Ps2Memcard private constructor(
      * matching myMCpp's syncParentDirectoryEntryLength.
      */
     fun syncParentDirectoryEntryLength(childDirCluster: Long): Boolean {
-        val child = readDirents(childDirCluster)
+        val child = readAllDirents(childDirCluster)
         if (child.isEmpty() || child[0].name != ".") return true
         val newLen = child[0].length
         val ancestor = child[0].cluster
         val slot = child[0].dirEntry.toInt()
 
-        val ancestorEntries = readDirents(ancestor).toMutableList()
+        val ancestorEntries = readAllDirents(ancestor).toMutableList()
         var updated = false
         if (slot in 0 until ancestorEntries.size && ancestorEntries[slot].isDirectory && ancestorEntries[slot].cluster == childDirCluster) {
             ancestorEntries[slot] = ancestorEntries[slot].copy(length = newLen)
@@ -723,6 +793,23 @@ class Ps2Memcard private constructor(
         val gameTitle = iconSys?.title?.trim()?.ifBlank { null } ?: saveName
         val subtitle = iconSys?.subtitle?.trim() ?: ""
 
+        // Decode save icon texture into Bitmap if icon file exists
+        val iconFileName = iconSys?.iconFile?.trim()?.ifBlank { null }
+            ?: subEntries.firstOrNull { it.isExists && (it.name.endsWith(".icn", ignoreCase = true) || it.name.endsWith(".ico", ignoreCase = true)) }?.name
+        val iconBitmap = if (iconFileName != null) {
+            val iconEntry = subEntries.firstOrNull { it.isExists && it.name.equals(iconFileName, ignoreCase = true) }
+            if (iconEntry != null && iconEntry.cluster != 0xFFFFFFFFL && iconEntry.length > 0) {
+                val iconData = readFile(iconEntry.cluster, iconEntry.length)
+                if (iconData.isNotEmpty()) {
+                    try {
+                        Ps2IconDecoder.decodeTexture(iconData)
+                    } catch (_: Throwable) {
+                        null
+                    }
+                } else null
+            } else null
+        } else null
+
         return Ps2Save(
             directoryName = saveName,
             title = gameTitle,
@@ -737,7 +824,7 @@ class Ps2Memcard private constructor(
             dirEntry = dirEntry,
             files = files,
             iconSys = iconSys,
-            iconBitmap = null
+            iconBitmap = iconBitmap
         )
     }
 
@@ -848,7 +935,7 @@ class Ps2Memcard private constructor(
             superBlock.rootdirCluster
         }
 
-        val parentEntries = readDirents(rootCluster).toMutableList()
+        val parentEntries = readAllDirents(rootCluster).toMutableList()
         val existing = parentEntries.firstOrNull { it.isExists && it.name == dirName }
         if (existing != null) {
             return existing.cluster
@@ -952,8 +1039,9 @@ class Ps2Memcard private constructor(
 
         val now = Ps2Timestamp.now()
         val templateMode = entryTemplate?.mode ?: (Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400)
-        val typeMask = Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS
-        val fileMode = (templateMode and typeMask.inv()) or (Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_0400)
+        // Ensure standard PS2 file attributes: DF_FILE | DF_EXISTS | DF_RWX | DF_0400, clear DF_PROTECTED so BIOS has full permit to delete/rewrite
+        val fileMode = (templateMode and Ps2DirectoryEntry.DF_PROTECTED.inv()) or
+                (Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400)
 
         val fileEntry = Ps2DirectoryEntry(
             mode = fileMode,
@@ -966,7 +1054,7 @@ class Ps2Memcard private constructor(
             name = fileName
         )
 
-        val parentEntries = readDirents(dirCluster).toMutableList()
+        val parentEntries = readAllDirents(dirCluster).toMutableList()
         val existingSlot = parentEntries.indexOfFirst { it.isExists && it.name == fileName }
         if (existingSlot != -1) {
             val oldCluster = parentEntries[existingSlot].cluster
@@ -975,7 +1063,12 @@ class Ps2Memcard private constructor(
             }
             parentEntries[existingSlot] = fileEntry
         } else {
-            parentEntries.add(fileEntry)
+            val reusableSlot = parentEntries.indexOfFirst { !it.isExists && it.name != "." && it.name != ".." }
+            if (reusableSlot != -1) {
+                parentEntries[reusableSlot] = fileEntry
+            } else {
+                parentEntries.add(fileEntry)
+            }
         }
 
         if (parentEntries.isNotEmpty() && parentEntries[0].name == ".") {
@@ -998,11 +1091,13 @@ class Ps2Memcard private constructor(
             superBlock.rootdirCluster
         }
 
-        val rootEntries = readDirents(rootCluster).toMutableList()
-        val entry = rootEntries.firstOrNull { it.name.trim().trimEnd('\u0000') == saveName } ?: return false
+        val rootEntries = readAllDirents(rootCluster).toMutableList()
+        val targetIdx = rootEntries.indexOfFirst { it.isExists && it.name.trim().trimEnd('\u0000') == saveName }
+        if (targetIdx == -1) return false
+        val entry = rootEntries[targetIdx]
 
         if (entry.isDirectory) {
-            val subEntries = readDirents(entry.cluster)
+            val subEntries = readAllDirents(entry.cluster)
             for (fEntry in subEntries) {
                 if (fEntry.name != "." && fEntry.name != ".." && fEntry.cluster != 0xFFFFFFFFL) {
                     freeClusterChain(fEntry.cluster)
@@ -1015,15 +1110,11 @@ class Ps2Memcard private constructor(
             }
         }
 
-        // Mark entry as deleted (clear DF_EXISTS)
-        val targetIdx = rootEntries.indexOfFirst { it.name.trim().trimEnd('\u0000') == saveName }
-        if (targetIdx != -1) {
-            rootEntries[targetIdx] = entry.copy(mode = entry.mode and Ps2DirectoryEntry.DF_EXISTS.inv())
-            writeDirents(rootCluster, rootEntries)
-            writeFatToCard()
-            return true
-        }
-        return false
+        // Mark entry as deleted in-place (clear DF_EXISTS, preserve physical slot)
+        rootEntries[targetIdx] = entry.copy(mode = entry.mode and Ps2DirectoryEntry.DF_EXISTS.inv())
+        writeDirents(rootCluster, rootEntries)
+        writeFatToCard()
+        return true
     }
 
     /**
@@ -1081,13 +1172,14 @@ class Ps2Memcard private constructor(
         }
 
         // 3. Update the save directory's root directory entry with the original mode, timestamps, and attr
-        val rootEntries = readDirents(rootCluster).toMutableList()
+        val rootEntries = readAllDirents(rootCluster).toMutableList()
         val saveEntryIdx = rootEntries.indexOfFirst { it.isDirectory && it.isExists && it.cluster == dirCluster }
         if (saveEntryIdx != -1) {
             val currentEntry = rootEntries[saveEntryIdx]
             val origMode = unpacked.dirEntry.mode
-            val typeMask = Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS
-            val newMode = (origMode and typeMask.inv()) or (currentEntry.mode and typeMask) or Ps2DirectoryEntry.DF_0400
+            // Always ensure DF_DIRECTORY | DF_EXISTS | DF_RWX | DF_0400, clear DF_PROTECTED
+            val newMode = (origMode and Ps2DirectoryEntry.DF_PROTECTED.inv()) or
+                    (Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400)
             rootEntries[saveEntryIdx] = currentEntry.copy(
                 mode = newMode,
                 created = unpacked.dirEntry.created,
@@ -1098,11 +1190,11 @@ class Ps2Memcard private constructor(
         }
 
         // 4. Update the save directory's "." entry length and timestamps
-        val dirEntries = readDirents(dirCluster).toMutableList()
+        val dirEntries = readAllDirents(dirCluster).toMutableList()
         if (dirEntries.isNotEmpty() && dirEntries[0].name == ".") {
             val origMode = unpacked.dirEntry.mode
-            val typeMask = Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS
-            val newMode = (origMode and typeMask.inv()) or (dirEntries[0].mode and typeMask) or Ps2DirectoryEntry.DF_0400
+            val newMode = (origMode and Ps2DirectoryEntry.DF_PROTECTED.inv()) or
+                    (Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400)
             dirEntries[0] = dirEntries[0].copy(
                 length = dirEntries.size.toLong(),
                 mode = newMode,

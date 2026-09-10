@@ -88,11 +88,13 @@ object MemcardFormatter {
 
         // Write FAT Table
         // Root directory occupies cluster 0: FAT[0] = 0xFFFFFFFF (bit 31 set + EOF)
-        // All other clusters free: FAT[i] = 0x00000000
+        // All other clusters free: FAT[i] = 0x7FFFFFFF (PS2MC_FAT_CHAIN_END_UNALLOC)
         val fatBuf = ByteBuffer.allocate(fatClusters * clusterSize).order(ByteOrder.LITTLE_ENDIAN)
-        fatBuf.putInt(0xFFFFFFFF.toInt()) // Cluster 0 (root dir)
-        val remainingFat = (fatClusters * clusterSize) - 4
-        fatBuf.put(ByteArray(remainingFat))
+        val totalFatEntries = (fatClusters * clusterSize) / 4
+        for (i in 0 until totalFatEntries) {
+            fatBuf.putInt(0x7FFFFFFF)
+        }
+        fatBuf.putInt(0, 0xFFFFFFFF.toInt()) // Cluster 0 (root dir)
         val fatBytes = fatBuf.array()
         System.arraycopy(fatBytes, 0, rawData, (fatClusterStart * clusterSize).toInt(), fatBytes.size)
 
@@ -120,7 +122,7 @@ object MemcardFormatter {
         val rootDotDot = Ps2DirectoryEntry(
             mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or
                     Ps2DirectoryEntry.DF_READ or Ps2DirectoryEntry.DF_WRITE or
-                    Ps2DirectoryEntry.DF_EXECUTE,
+                    Ps2DirectoryEntry.DF_EXECUTE or Ps2DirectoryEntry.DF_0400,
             length = 0,
             created = now,
             cluster = 0,

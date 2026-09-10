@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
         viewModel.setCustomDirectory(uri, dirName)
 
         val bytes = pendingSaveCardBytes ?: viewModel.getRawCardData()
-        val cardName = pendingSaveCardName ?: (viewModel.uiState.value as? CardUiState.Loaded)?.cardName ?: "Mcd001.ps2"
+        val cardName = pendingSaveCardName ?: (viewModel.uiState.value as? CardUiState.Loaded)?.cardName ?: "mcd001.ps2"
 
         if (bytes != null) {
             try {

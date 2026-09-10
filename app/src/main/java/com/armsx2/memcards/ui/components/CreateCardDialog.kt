@@ -45,7 +45,7 @@ fun CreateCardDialog(
     onDismiss: () -> Unit,
     onSaveCard: (name: String, sizeInMB: Int, useEcc: Boolean) -> Unit
 ) {
-    var cardName by remember { mutableStateOf("Mcd001.ps2") }
+    var cardName by remember { mutableStateOf("mcd001.ps2") }
     var selectedSize by remember { mutableIntStateOf(8) }
     var useEcc by remember { mutableStateOf(true) }
 
