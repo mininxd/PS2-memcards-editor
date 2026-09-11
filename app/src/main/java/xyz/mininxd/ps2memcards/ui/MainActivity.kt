@@ -49,10 +49,16 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import xyz.mininxd.ps2memcards.core.ExportFilenameFormat
 import xyz.mininxd.ps2memcards.core.MemcardFormatter
 import xyz.mininxd.ps2memcards.core.Ps2Save
 import xyz.mininxd.ps2memcards.core.RecentCard
+import xyz.mininxd.ps2memcards.core.StoragePermissionHelper
 import xyz.mininxd.ps2memcards.ui.components.AppHeader
 import xyz.mininxd.ps2memcards.ui.components.CardStatsDialog
 import xyz.mininxd.ps2memcards.ui.components.CreateCardDialog
@@ -61,6 +67,7 @@ import xyz.mininxd.ps2memcards.ui.components.FormatCardDialog
 import xyz.mininxd.ps2memcards.ui.components.HexViewerDialog
 import xyz.mininxd.ps2memcards.ui.components.SaveDetailModal
 import xyz.mininxd.ps2memcards.ui.components.SettingsDialog
+import xyz.mininxd.ps2memcards.ui.components.StoragePermissionDialog
 import xyz.mininxd.ps2memcards.ui.components.SwipeDismissNotification
 import xyz.mininxd.ps2memcards.ui.screens.EmptyStateScreen
 import xyz.mininxd.ps2memcards.ui.screens.MainScreen
@@ -84,6 +91,7 @@ class MainActivity : ComponentActivity() {
     private var pendingExportZipBytes: ByteArray? = null
     private var pendingCreateCard: PendingCreateCard? = null
     private var pendingActionAfterSave: (() -> Unit)? = null
+    private var isWaitingForActivityResult = false
 
     private val snackbarHostState = SnackbarHostState()
 
@@ -101,6 +109,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val openCardLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        isWaitingForActivityResult = false
         uri?.let {
             try {
                 contentResolver.takePersistableUriPermission(
@@ -117,6 +126,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val selectSaveDirectoryLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        isWaitingForActivityResult = false
         if (uri == null) {
             pendingCreateCard = null
             pendingActionAfterSave = null
@@ -250,6 +260,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val importSaveLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        isWaitingForActivityResult = false
         uri?.let {
             try {
                 contentResolver.openInputStream(it)?.use { stream ->
@@ -263,6 +274,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val exportPsuLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
+        isWaitingForActivityResult = false
         uri?.let { targetUri ->
             pendingExportPsuBytes?.let { bytes ->
                 try {
@@ -279,6 +291,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val exportMaxLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
+        isWaitingForActivityResult = false
         uri?.let { targetUri ->
             pendingExportMaxBytes?.let { bytes ->
                 try {
@@ -295,6 +308,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val exportCbsLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
+        isWaitingForActivityResult = false
         uri?.let { targetUri ->
             pendingExportCbsBytes?.let { bytes ->
                 try {
@@ -311,6 +325,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val exportXpsLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
+        isWaitingForActivityResult = false
         uri?.let { targetUri ->
             pendingExportXpsBytes?.let { bytes ->
                 try {
@@ -327,6 +342,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private val exportZipLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri: Uri? ->
+        isWaitingForActivityResult = false
         uri?.let { targetUri ->
             pendingExportZipBytes?.let { bytes ->
                 try {
@@ -342,10 +358,103 @@ class MainActivity : ComponentActivity() {
         pendingExportZipBytes = null
     }
 
+    private val manageStorageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        isWaitingForActivityResult = false
+        val granted = StoragePermissionHelper.hasStoragePermission(this)
+        viewModel.updateStoragePermission(granted)
+        if (granted) {
+            showToast("Storage access granted")
+        } else {
+            showToast("Storage access was not granted", isLong = false)
+        }
+    }
+
+    private val requestLegacyStorageLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+        isWaitingForActivityResult = false
+        val granted = StoragePermissionHelper.hasStoragePermission(this)
+        viewModel.updateStoragePermission(granted)
+        if (granted) {
+            showToast("Storage access granted")
+        } else {
+            val showRationaleRead = ActivityCompat.shouldShowRequestPermissionRationale(
+                this, Manifest.permission.READ_EXTERNAL_STORAGE
+            )
+            val showRationaleWrite = ActivityCompat.shouldShowRequestPermissionRationale(
+                this, Manifest.permission.WRITE_EXTERNAL_STORAGE
+            )
+            if (!showRationaleRead && !showRationaleWrite) {
+                try {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    isWaitingForActivityResult = true
+                    manageStorageLauncher.launch(intent)
+                } catch (_: Exception) {}
+            } else {
+                showToast("Storage access was not granted", isLong = false)
+            }
+        }
+    }
+
+    private fun requestStorageAccess() {
+        isWaitingForActivityResult = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                manageStorageLauncher.launch(intent)
+            } catch (_: Exception) {
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    manageStorageLauncher.launch(intent)
+                } catch (_: Exception) {
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:$packageName")
+                        }
+                        manageStorageLauncher.launch(intent)
+                    } catch (e: Exception) {
+                        isWaitingForActivityResult = false
+                        showToast("Could not open storage settings: ${e.message}", isLong = true)
+                    }
+                }
+            }
+        } else {
+            requestLegacyStorageLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                )
+            )
+        }
+    }
+
+    private fun launchOpenCard() {
+        isWaitingForActivityResult = true
+        openCardLauncher.launch(arrayOf("*/*"))
+    }
+
+    private fun launchSelectSaveDirectory() {
+        isWaitingForActivityResult = true
+        selectSaveDirectoryLauncher.launch(null)
+    }
+
+    private fun launchImportSave() {
+        isWaitingForActivityResult = true
+        importSaveLauncher.launch(arrayOf("*/*"))
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val hasStoragePermission = StoragePermissionHelper.hasStoragePermission(this)
+        viewModel.updateStoragePermission(hasStoragePermission)
+        if (!hasStoragePermission) {
+            viewModel.setShowStoragePermissionDialog(true)
+        }
 
         viewModel.initSettings(this)
 
@@ -383,6 +492,8 @@ class MainActivity : ComponentActivity() {
                 val isRefreshing by viewModel.isRefreshing.collectAsState()
                 val canUndo by viewModel.canUndo.collectAsState()
                 val canRedo by viewModel.canRedo.collectAsState()
+                val hasStoragePermission by viewModel.hasStoragePermission.collectAsState()
+                val showStoragePermissionDialog by viewModel.showStoragePermissionDialog.collectAsState()
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -504,7 +615,7 @@ class MainActivity : ComponentActivity() {
                             canRedo = canRedo,
                             onUndo = { viewModel.undo() },
                             onRedo = { viewModel.redo() },
-                            onOpenCard = { openCardLauncher.launch(arrayOf("*/*")) },
+                            onOpenCard = { launchOpenCard() },
                             onCreateCard = { viewModel.setShowCreateDialog(true) },
                             onSaveCard = { triggerSaveCurrentCard() },
                             onSaveCardAs = { triggerSaveCardAs() },
@@ -538,7 +649,7 @@ class MainActivity : ComponentActivity() {
                         when (val state = uiState) {
                             is CardUiState.Empty -> {
                                 EmptyStateScreen(
-                                    onOpenCard = { openCardLauncher.launch(arrayOf("*/*")) },
+                                    onOpenCard = { launchOpenCard() },
                                     onCreateCard = { viewModel.setShowCreateDialog(true) },
                                     recentCards = recentCards,
                                     onOpenRecentCard = { recent ->
@@ -554,9 +665,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.0"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.1"
                                         } catch (e: Exception) {
-                                            "1.4.0"
+                                            "1.4.1"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
@@ -586,7 +697,7 @@ class MainActivity : ComponentActivity() {
                                 val onSearchChange = remember(viewModel) { { q: String -> viewModel.setSearchQuery(q) } }
                                 val onFilterChange = remember(viewModel) { { f: FilterType -> viewModel.setFilterType(f) } }
                                 val onSortChange = remember(viewModel) { { s: SortBy -> viewModel.setSortBy(s) } }
-                                val onImportPsu = remember { { importSaveLauncher.launch(arrayOf("*/*")) } }
+                                val onImportPsu = remember { { launchImportSave() } }
                                 val onSaveCard = remember { { triggerSaveCurrentCard() } }
                                 val onFormatCard = remember(viewModel) { { viewModel.setShowFormatDialog(true) } }
                                 val onRefresh = remember(state.cardUri, hasUnsavedChanges) {
@@ -638,7 +749,7 @@ class MainActivity : ComponentActivity() {
                                             color = MaterialTheme.colorScheme.error
                                         )
                                         Spacer(modifier = Modifier.height(16.dp))
-                                        Button(onClick = { openCardLauncher.launch(arrayOf("*/*")) }) {
+                                        Button(onClick = { launchOpenCard() }) {
                                             Text("Open Another Card")
                                         }
                                     }
@@ -706,7 +817,7 @@ class MainActivity : ComponentActivity() {
                 if (showCreateDialog) {
                     CreateCardDialog(
                         customDirectoryName = customDirectoryName,
-                        onSelectCustomDirectory = { selectSaveDirectoryLauncher.launch(null) },
+                        onSelectCustomDirectory = { launchSelectSaveDirectory() },
                         onDismiss = { viewModel.setShowCreateDialog(false) },
                         onSaveCard = { name, size, ecc, formatted ->
                             viewModel.setShowCreateDialog(false)
@@ -715,7 +826,7 @@ class MainActivity : ComponentActivity() {
                                 createAndSaveCard(customDirUri, name, size, ecc, formatted)
                             } else {
                                 pendingCreateCard = PendingCreateCard(name, size, ecc, formatted)
-                                selectSaveDirectoryLauncher.launch(null)
+                                launchSelectSaveDirectory()
                             }
                         }
                     )
@@ -758,14 +869,47 @@ class MainActivity : ComponentActivity() {
                         onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
                         onDismiss = { viewModel.setShowSettingsDialog(false) },
                         versionName = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.0"
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.1"
                         } catch (_: Exception) {
-                            "1.4.0"
+                            "1.4.1"
+                        },
+                        hasStoragePermission = hasStoragePermission,
+                        onRequestStoragePermission = {
+                            requestStorageAccess()
+                        }
+                    )
+                }
+
+                if (showStoragePermissionDialog) {
+                    StoragePermissionDialog(
+                        onGrantAccess = {
+                            requestStorageAccess()
+                        },
+                        onDismiss = {
+                            viewModel.setShowStoragePermissionDialog(false)
                         }
                     )
                 }
             }
         }
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        if (!isWaitingForActivityResult) {
+            val granted = StoragePermissionHelper.hasStoragePermission(this)
+            viewModel.updateStoragePermission(granted)
+            if (!granted) {
+                viewModel.setShowStoragePermissionDialog(true)
+            }
+        }
+        isWaitingForActivityResult = false
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val granted = StoragePermissionHelper.hasStoragePermission(this)
+        viewModel.updateStoragePermission(granted)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -830,7 +974,7 @@ class MainActivity : ComponentActivity() {
     private fun triggerSaveCardAs() {
         viewModel.clearLoading()
         if (viewModel.uiState.value is CardUiState.Loaded) {
-            selectSaveDirectoryLauncher.launch(null)
+            launchSelectSaveDirectory()
         }
     }
 
@@ -844,6 +988,7 @@ class MainActivity : ComponentActivity() {
         if (bytes != null) {
             pendingExportPsuBytes = bytes
             val filename = ExportFilenameFormat.generateFilename(save, "psu", viewModel.exportFilenameFormat.value)
+            isWaitingForActivityResult = true
             exportPsuLauncher.launch(filename)
         } else {
             showToast("Failed to export PSU")
@@ -855,6 +1000,7 @@ class MainActivity : ComponentActivity() {
         if (bytes != null) {
             pendingExportMaxBytes = bytes
             val filename = ExportFilenameFormat.generateFilename(save, "max", viewModel.exportFilenameFormat.value)
+            isWaitingForActivityResult = true
             exportMaxLauncher.launch(filename)
         } else {
             showToast("Failed to export Action Replay MAX save")
@@ -866,6 +1012,7 @@ class MainActivity : ComponentActivity() {
         if (bytes != null) {
             pendingExportCbsBytes = bytes
             val filename = ExportFilenameFormat.generateFilename(save, "cbs", viewModel.exportFilenameFormat.value)
+            isWaitingForActivityResult = true
             exportCbsLauncher.launch(filename)
         } else {
             showToast("Failed to export CodeBreaker save")
@@ -877,6 +1024,7 @@ class MainActivity : ComponentActivity() {
         if (bytes != null) {
             pendingExportXpsBytes = bytes
             val filename = ExportFilenameFormat.generateFilename(save, "xps", viewModel.exportFilenameFormat.value)
+            isWaitingForActivityResult = true
             exportXpsLauncher.launch(filename)
         } else {
             showToast("Failed to export SharkPort / X-Port save")
@@ -888,6 +1036,7 @@ class MainActivity : ComponentActivity() {
         if (bytes != null) {
             pendingExportZipBytes = bytes
             val filename = ExportFilenameFormat.generateFilename(save, "zip", viewModel.exportFilenameFormat.value)
+            isWaitingForActivityResult = true
             exportZipLauncher.launch(filename)
         } else {
             showToast("Failed to export ZIP")
