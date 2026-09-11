@@ -300,7 +300,12 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    contentPadding = PaddingValues(
+                        start = 10.dp,
+                        top = 4.dp,
+                        end = 10.dp,
+                        bottom = 80.dp
+                    ),
                     verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     items(

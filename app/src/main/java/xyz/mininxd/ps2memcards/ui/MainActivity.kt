@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -23,8 +22,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -34,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,6 +61,7 @@ import xyz.mininxd.ps2memcards.ui.components.FormatCardDialog
 import xyz.mininxd.ps2memcards.ui.components.HexViewerDialog
 import xyz.mininxd.ps2memcards.ui.components.SaveDetailModal
 import xyz.mininxd.ps2memcards.ui.components.SettingsDialog
+import xyz.mininxd.ps2memcards.ui.components.SwipeDismissNotification
 import xyz.mininxd.ps2memcards.ui.screens.EmptyStateScreen
 import xyz.mininxd.ps2memcards.ui.screens.MainScreen
 import xyz.mininxd.ps2memcards.ui.theme.PS2MemcardTheme
@@ -84,16 +88,16 @@ class MainActivity : ComponentActivity() {
     private val snackbarHostState = SnackbarHostState()
 
     /**
-     * Shows a Toast message only when no bottom UI is currently popped up (such as a
-     * ModalBottomSheet or an active Snackbar).
+     * Shows an in-app notification / toast message with swipe-to-dismiss (slide to hide) support.
      */
     private fun showToast(message: String, isLong: Boolean = false) {
-        val isBottomUiPopped = (viewModel.selectedSave.value != null) ||
-                               (snackbarHostState.currentSnackbarData != null)
-        if (isBottomUiPopped) {
-            return
+        lifecycleScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = if (isLong) SnackbarDuration.Long else SnackbarDuration.Short
+            )
         }
-        Toast.makeText(this, message, if (isLong) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
     }
 
     private val openCardLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -338,6 +342,7 @@ class MainActivity : ComponentActivity() {
         pendingExportZipBytes = null
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -378,6 +383,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
+                        snackbarHostState.currentSnackbarData?.dismiss()
                         snackbarHostState.showSnackbar(msg)
                         viewModel.clearSnackbar()
                     }
@@ -459,7 +465,20 @@ class MainActivity : ComponentActivity() {
                             onOpenSettings = { viewModel.setShowSettingsDialog(true) }
                         )
                     },
-                    snackbarHost = { SnackbarHost(snackbarHostState) }
+                    snackbarHost = {
+                        SnackbarHost(snackbarHostState) { data ->
+                            key(data) {
+                                SwipeDismissNotification(
+                                    onDismiss = { data.dismiss() }
+                                ) {
+                                    Snackbar(
+                                        snackbarData = data,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 ) { innerPadding ->
                     Surface(
                         modifier = Modifier
@@ -486,9 +505,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.1"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.2"
                                         } catch (e: Exception) {
-                                            "1.3.1"
+                                            "1.3.2"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
@@ -676,9 +695,9 @@ class MainActivity : ComponentActivity() {
                         onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
                         onDismiss = { viewModel.setShowSettingsDialog(false) },
                         versionName = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.1"
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.2"
                         } catch (_: Exception) {
-                            "1.3.1"
+                            "1.3.2"
                         }
                     )
                 }
