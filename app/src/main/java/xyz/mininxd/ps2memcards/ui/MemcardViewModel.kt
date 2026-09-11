@@ -132,9 +132,6 @@ class MemcardViewModel : ViewModel() {
     private val _hasStoragePermission = MutableStateFlow(true)
     val hasStoragePermission: StateFlow<Boolean> = _hasStoragePermission.asStateFlow()
 
-    private val _showStoragePermissionDialog = MutableStateFlow(false)
-    val showStoragePermissionDialog: StateFlow<Boolean> = _showStoragePermissionDialog.asStateFlow()
-
     fun initSettings(context: Context) {
         _recentCards.value = RecentCardsManager.getRecentCards(context)
         _exportFilenameFormat.value = ExportFilenameFormat.getSavedFormat(context)
@@ -166,13 +163,6 @@ class MemcardViewModel : ViewModel() {
 
     fun updateStoragePermission(isGranted: Boolean) {
         _hasStoragePermission.value = isGranted
-        if (isGranted) {
-            _showStoragePermissionDialog.value = false
-        }
-    }
-
-    fun setShowStoragePermissionDialog(show: Boolean) {
-        _showStoragePermissionDialog.value = show
     }
 
     fun checkUpdate(currentVersion: String) {

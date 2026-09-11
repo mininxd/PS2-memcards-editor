@@ -63,6 +63,8 @@ fun EmptyStateScreen(
     onOpenSettings: () -> Unit = {},
     updateStatus: UpdateStatus = UpdateStatus.Idle,
     onCheckUpdate: () -> Unit = {},
+    hasStoragePermission: Boolean = true,
+    onRequestStoragePermission: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val hasRecents = recentCards.isNotEmpty()
@@ -248,6 +250,49 @@ fun EmptyStateScreen(
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 onClick = onCreateCard
             )
+        }
+
+        if (!hasStoragePermission) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onRequestStoragePermission() },
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SdCard,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onErrorContainer
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Storage Permission Required",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = "Tap to open Settings and allow storage access",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f)
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))

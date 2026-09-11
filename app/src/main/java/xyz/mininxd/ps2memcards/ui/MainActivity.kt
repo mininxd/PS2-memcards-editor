@@ -67,7 +67,6 @@ import xyz.mininxd.ps2memcards.ui.components.FormatCardDialog
 import xyz.mininxd.ps2memcards.ui.components.HexViewerDialog
 import xyz.mininxd.ps2memcards.ui.components.SaveDetailModal
 import xyz.mininxd.ps2memcards.ui.components.SettingsDialog
-import xyz.mininxd.ps2memcards.ui.components.StoragePermissionDialog
 import xyz.mininxd.ps2memcards.ui.components.SwipeDismissNotification
 import xyz.mininxd.ps2memcards.ui.screens.EmptyStateScreen
 import xyz.mininxd.ps2memcards.ui.screens.MainScreen
@@ -396,7 +395,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestStorageAccess() {
+    private fun redirectToStorageSettings() {
         isWaitingForActivityResult = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
@@ -421,12 +420,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } else {
-            requestLegacyStorageLauncher.launch(
-                arrayOf(
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+                manageStorageLauncher.launch(intent)
+            } catch (_: Exception) {
+                requestLegacyStorageLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    )
                 )
-            )
+            }
         }
     }
 
@@ -453,7 +459,7 @@ class MainActivity : ComponentActivity() {
         val hasStoragePermission = StoragePermissionHelper.hasStoragePermission(this)
         viewModel.updateStoragePermission(hasStoragePermission)
         if (!hasStoragePermission) {
-            viewModel.setShowStoragePermissionDialog(true)
+            redirectToStorageSettings()
         }
 
         viewModel.initSettings(this)
@@ -493,7 +499,6 @@ class MainActivity : ComponentActivity() {
                 val canUndo by viewModel.canUndo.collectAsState()
                 val canRedo by viewModel.canRedo.collectAsState()
                 val hasStoragePermission by viewModel.hasStoragePermission.collectAsState()
-                val showStoragePermissionDialog by viewModel.showStoragePermissionDialog.collectAsState()
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -670,7 +675,9 @@ class MainActivity : ComponentActivity() {
                                             "1.4.1"
                                         }
                                         viewModel.checkUpdate(version)
-                                    }
+                                    },
+                                    hasStoragePermission = hasStoragePermission,
+                                    onRequestStoragePermission = { redirectToStorageSettings() }
                                 )
                             }
                             is CardUiState.Loading -> {
@@ -875,18 +882,7 @@ class MainActivity : ComponentActivity() {
                         },
                         hasStoragePermission = hasStoragePermission,
                         onRequestStoragePermission = {
-                            requestStorageAccess()
-                        }
-                    )
-                }
-
-                if (showStoragePermissionDialog) {
-                    StoragePermissionDialog(
-                        onGrantAccess = {
-                            requestStorageAccess()
-                        },
-                        onDismiss = {
-                            viewModel.setShowStoragePermissionDialog(false)
+                            redirectToStorageSettings()
                         }
                     )
                 }
@@ -900,7 +896,7 @@ class MainActivity : ComponentActivity() {
             val granted = StoragePermissionHelper.hasStoragePermission(this)
             viewModel.updateStoragePermission(granted)
             if (!granted) {
-                viewModel.setShowStoragePermissionDialog(true)
+                redirectToStorageSettings()
             }
         }
         isWaitingForActivityResult = false
