@@ -364,7 +364,7 @@ class MainActivity : ComponentActivity() {
         if (granted) {
             showToast("Storage access granted")
         } else {
-            showToast("Storage access was not granted", isLong = false)
+            showToast("Storage access is required to manage memory cards", isLong = false)
         }
     }
 
@@ -375,29 +375,13 @@ class MainActivity : ComponentActivity() {
         if (granted) {
             showToast("Storage access granted")
         } else {
-            val showRationaleRead = ActivityCompat.shouldShowRequestPermissionRationale(
-                this, Manifest.permission.READ_EXTERNAL_STORAGE
-            )
-            val showRationaleWrite = ActivityCompat.shouldShowRequestPermissionRationale(
-                this, Manifest.permission.WRITE_EXTERNAL_STORAGE
-            )
-            if (!showRationaleRead && !showRationaleWrite) {
-                try {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
-                    isWaitingForActivityResult = true
-                    manageStorageLauncher.launch(intent)
-                } catch (_: Exception) {}
-            } else {
-                showToast("Storage access was not granted", isLong = false)
-            }
+            showToast("Storage access is required to manage memory cards", isLong = false)
         }
     }
 
     private fun redirectToStorageSettings() {
-        isWaitingForActivityResult = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            isWaitingForActivityResult = true
             try {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
                     data = Uri.parse("package:$packageName")
@@ -407,32 +391,19 @@ class MainActivity : ComponentActivity() {
                 try {
                     val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                     manageStorageLauncher.launch(intent)
-                } catch (_: Exception) {
-                    try {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.parse("package:$packageName")
-                        }
-                        manageStorageLauncher.launch(intent)
-                    } catch (e: Exception) {
-                        isWaitingForActivityResult = false
-                        showToast("Could not open storage settings: ${e.message}", isLong = true)
-                    }
+                } catch (e: Exception) {
+                    isWaitingForActivityResult = false
+                    showToast("Could not open storage settings: ${e.message}", isLong = true)
                 }
             }
         } else {
-            try {
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:$packageName")
-                }
-                manageStorageLauncher.launch(intent)
-            } catch (_: Exception) {
-                requestLegacyStorageLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    )
+            isWaitingForActivityResult = true
+            requestLegacyStorageLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
                 )
-            }
+            )
         }
     }
 
@@ -498,7 +469,6 @@ class MainActivity : ComponentActivity() {
                 val isRefreshing by viewModel.isRefreshing.collectAsState()
                 val canUndo by viewModel.canUndo.collectAsState()
                 val canRedo by viewModel.canRedo.collectAsState()
-                val hasStoragePermission by viewModel.hasStoragePermission.collectAsState()
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -675,9 +645,7 @@ class MainActivity : ComponentActivity() {
                                             "1.4.1"
                                         }
                                         viewModel.checkUpdate(version)
-                                    },
-                                    hasStoragePermission = hasStoragePermission,
-                                    onRequestStoragePermission = { redirectToStorageSettings() }
+                                    }
                                 )
                             }
                             is CardUiState.Loading -> {
@@ -879,10 +847,6 @@ class MainActivity : ComponentActivity() {
                             packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.1"
                         } catch (_: Exception) {
                             "1.4.1"
-                        },
-                        hasStoragePermission = hasStoragePermission,
-                        onRequestStoragePermission = {
-                            redirectToStorageSettings()
                         }
                     )
                 }
