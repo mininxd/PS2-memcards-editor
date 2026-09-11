@@ -906,6 +906,9 @@ class Ps2Memcard private constructor(
             offset += toWrite
         }
 
+        val parentEntries = readDirents(dirCluster).toMutableList()
+        val existingSlot = parentEntries.indexOfFirst { it.name == fileName }
+
         val now = Ps2Timestamp.now()
         val templateMode = entryTemplate?.mode ?: (Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400)
         // Ensure standard PS2 file attributes: DF_FILE | DF_EXISTS | DF_RWX | DF_0400, clear DF_PROTECTED so BIOS has full permit to delete/rewrite
@@ -918,13 +921,11 @@ class Ps2Memcard private constructor(
             created = entryTemplate?.created ?: now,
             cluster = if (fileClusters.isEmpty()) 0xFFFFFFFFL else fileClusters[0],
             dirEntry = 0,
-            modified = entryTemplate?.modified ?: now,
+            modified = if (existingSlot != -1) now else (entryTemplate?.modified ?: now),
             attr = entryTemplate?.attr ?: 0L,
             name = fileName
         )
 
-        val parentEntries = readDirents(dirCluster).toMutableList()
-        val existingSlot = parentEntries.indexOfFirst { it.name == fileName }
         if (existingSlot != -1) {
             val oldCluster = parentEntries[existingSlot].cluster
             if (oldCluster != 0xFFFFFFFFL) {
@@ -1006,6 +1007,8 @@ class Ps2Memcard private constructor(
         if (!isFormatted) return false
         val unpacked = when {
             MaxHandler.isMax(saveData) -> MaxHandler.unpackMax(saveData)
+            CbsHandler.isCbs(saveData) -> CbsHandler.unpackCbs(saveData)
+            XpsHandler.isXps(saveData) -> XpsHandler.unpackXps(saveData)
             else -> PsuHandler.unpackPsu(saveData)
         } ?: return false
         return importUnpackedSave(unpacked)
@@ -1023,6 +1026,22 @@ class Ps2Memcard private constructor(
      */
     fun importMax(maxData: ByteArray): Boolean {
         val unpacked = MaxHandler.unpackMax(maxData) ?: return false
+        return importUnpackedSave(unpacked)
+    }
+
+    /**
+     * Imports a CodeBreaker (.cbs) save archive onto this memory card.
+     */
+    fun importCbs(cbsData: ByteArray): Boolean {
+        val unpacked = CbsHandler.unpackCbs(cbsData) ?: return false
+        return importUnpackedSave(unpacked)
+    }
+
+    /**
+     * Imports a SharkPort / X-Port (.xps) save archive onto this memory card.
+     */
+    fun importXps(xpsData: ByteArray): Boolean {
+        val unpacked = XpsHandler.unpackXps(xpsData) ?: return false
         return importUnpackedSave(unpacked)
     }
 
@@ -1114,6 +1133,56 @@ class Ps2Memcard private constructor(
         }
         val title = save.title.ifBlank { saveName }
         return MaxHandler.packMax(saveName, title, filesMap)
+    }
+
+    /**
+     * Exports a save folder as a CodeBreaker (.cbs) byte array.
+     */
+    fun exportSaveAsCbs(saveName: String): ByteArray? {
+        if (!isFormatted) return null
+        val save = listSaves().firstOrNull { it.directoryName == saveName } ?: return null
+        val filesMap = mutableMapOf<String, ByteArray>()
+        for (f in save.files) {
+            val data = f.data ?: getSaveFileBytes(saveName, f.name) ?: ByteArray(0)
+            filesMap[f.name] = data
+        }
+        val title = save.title.ifBlank { saveName }
+        return CbsHandler.packCbs(saveName, save.dirEntry, filesMap, title)
+    }
+
+    /**
+     * Exports a save folder as a SharkPort / X-Port (.xps) byte array.
+     */
+    fun exportSaveAsXps(saveName: String): ByteArray? {
+        if (!isFormatted) return null
+        val save = listSaves().firstOrNull { it.directoryName == saveName } ?: return null
+        val filesMap = mutableMapOf<String, ByteArray>()
+        for (f in save.files) {
+            val data = f.data ?: getSaveFileBytes(saveName, f.name) ?: ByteArray(0)
+            filesMap[f.name] = data
+        }
+        return XpsHandler.packXps(saveName, save.dirEntry, filesMap)
+    }
+
+    /**
+     * Updates an individual file's contents inside a save folder (e.g. for Hex Hacking).
+     */
+    fun updateSaveFile(saveName: String, fileName: String, newData: ByteArray): Boolean {
+        if (!isFormatted) return false
+        val rootCluster = if (superBlock.rootdirCluster >= allocOffset) {
+            superBlock.rootdirCluster - allocOffset
+        } else {
+            superBlock.rootdirCluster
+        }
+        val rootEntries = readDirents(rootCluster)
+        val saveEntry = rootEntries.firstOrNull { it.name.trim().trimEnd('\u0000') == saveName } ?: return false
+        val subEntries = readDirents(saveEntry.cluster)
+        val template = subEntries.firstOrNull { it.name.trim().trimEnd('\u0000').equals(fileName, ignoreCase = true) }
+        val ok = writeFile(saveEntry.cluster, fileName, newData, template)
+        if (ok) {
+            invalidateSavesCache()
+        }
+        return ok
     }
 
     /**

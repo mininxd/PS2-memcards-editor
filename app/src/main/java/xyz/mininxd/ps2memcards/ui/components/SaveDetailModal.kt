@@ -55,6 +55,8 @@ fun SaveDetailModal(
     onDismiss: () -> Unit,
     onExportPsu: () -> Unit,
     onExportMax: () -> Unit = {},
+    onExportCbs: () -> Unit = {},
+    onExportXps: () -> Unit = {},
     onExportZip: () -> Unit,
     onDelete: () -> Unit,
     onInspectFileHex: (Ps2SaveFile) -> Unit
@@ -234,6 +236,15 @@ fun SaveDetailModal(
             Spacer(modifier = Modifier.height(20.dp))
 
             // Action Buttons
+            Text(
+                text = "Export Save Package",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Console Formats Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -241,46 +252,68 @@ fun SaveDetailModal(
                 FilledTonalButton(
                     onClick = onExportPsu,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("PSU", style = MaterialTheme.typography.labelMedium)
+                    Text("PSU", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
 
                 FilledTonalButton(
                     onClick = onExportMax,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("MAX", style = MaterialTheme.typography.labelMedium)
+                    Text("MAX", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
 
                 FilledTonalButton(
+                    onClick = onExportCbs,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)
+                ) {
+                    Text("CBS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                }
+
+                FilledTonalButton(
+                    onClick = onExportXps,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 6.dp)
+                ) {
+                    Text("XPS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Secondary Actions Row: ZIP & Delete
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FilledTonalButton(
                     onClick = onExportZip,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
                     Icon(Icons.Default.FolderZip, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("ZIP", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("ZIP Archive", style = MaterialTheme.typography.labelMedium)
                 }
 
                 OutlinedButton(
                     onClick = onDelete,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                 ) {
                     Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Delete", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Delete Save", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }

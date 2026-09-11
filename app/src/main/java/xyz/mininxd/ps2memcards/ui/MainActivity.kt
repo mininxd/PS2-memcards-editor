@@ -74,6 +74,8 @@ class MainActivity : ComponentActivity() {
 
     private var pendingExportPsuBytes: ByteArray? = null
     private var pendingExportMaxBytes: ByteArray? = null
+    private var pendingExportCbsBytes: ByteArray? = null
+    private var pendingExportXpsBytes: ByteArray? = null
     private var pendingExportZipBytes: ByteArray? = null
     private var pendingCreateCard: PendingCreateCard? = null
     private var pendingActionAfterSave: (() -> Unit)? = null
@@ -287,6 +289,38 @@ class MainActivity : ComponentActivity() {
         pendingExportMaxBytes = null
     }
 
+    private val exportCbsLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
+        uri?.let { targetUri ->
+            pendingExportCbsBytes?.let { bytes ->
+                try {
+                    contentResolver.openOutputStream(targetUri)?.use { out ->
+                        out.write(bytes)
+                    }
+                    showToast("CodeBreaker (.cbs) save exported successfully!")
+                } catch (e: Exception) {
+                    showToast("Export failed: ${e.message}", isLong = true)
+                }
+            }
+        }
+        pendingExportCbsBytes = null
+    }
+
+    private val exportXpsLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
+        uri?.let { targetUri ->
+            pendingExportXpsBytes?.let { bytes ->
+                try {
+                    contentResolver.openOutputStream(targetUri)?.use { out ->
+                        out.write(bytes)
+                    }
+                    showToast("SharkPort / X-Port (.xps) save exported successfully!")
+                } catch (e: Exception) {
+                    showToast("Export failed: ${e.message}", isLong = true)
+                }
+            }
+        }
+        pendingExportXpsBytes = null
+    }
+
     private val exportZipLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri: Uri? ->
         uri?.let { targetUri ->
             pendingExportZipBytes?.let { bytes ->
@@ -450,9 +484,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.0"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.1"
                                         } catch (e: Exception) {
-                                            "1.3.0"
+                                            "1.3.1"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
@@ -532,6 +566,14 @@ class MainActivity : ComponentActivity() {
                             viewModel.selectSave(null)
                             triggerExportMax(save)
                         },
+                        onExportCbs = {
+                            viewModel.selectSave(null)
+                            triggerExportCbs(save)
+                        },
+                        onExportXps = {
+                            viewModel.selectSave(null)
+                            triggerExportXps(save)
+                        },
                         onExportZip = {
                             viewModel.selectSave(null)
                             triggerExportZip(save)
@@ -542,7 +584,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onInspectFileHex = { file ->
                             val data = file.data ?: (uiState as? CardUiState.Loaded)?.memcard?.getSaveFileBytes(save.directoryName, file.name) ?: ByteArray(0)
-                            viewModel.openHexViewer(file.name, data)
+                            viewModel.openHexViewer(file.name, data, save.directoryName)
                         }
                     )
                 }
@@ -586,10 +628,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                hexViewerData?.let { (title, data) ->
+                hexViewerData?.let { target ->
                     HexViewerDialog(
-                        title = title,
-                        data = data,
+                        title = target.fileName,
+                        data = target.data,
+                        saveDirectoryName = target.saveDirectoryName,
+                        onSaveFile = if (target.saveDirectoryName != null) {
+                            { newBytes -> viewModel.updateSaveFile(target.saveDirectoryName, target.fileName, newBytes) }
+                        } else null,
                         onDismiss = { viewModel.closeHexViewer() }
                     )
                 }
@@ -602,9 +648,9 @@ class MainActivity : ComponentActivity() {
                         onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
                         onDismiss = { viewModel.setShowSettingsDialog(false) },
                         versionName = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.0"
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.1"
                         } catch (_: Exception) {
-                            "1.3.0"
+                            "1.3.1"
                         }
                     )
                 }
@@ -702,6 +748,28 @@ class MainActivity : ComponentActivity() {
             exportMaxLauncher.launch(filename)
         } else {
             showToast("Failed to export Action Replay MAX save")
+        }
+    }
+
+    private fun triggerExportCbs(save: Ps2Save) {
+        val bytes = viewModel.exportCbs(save.directoryName)
+        if (bytes != null) {
+            pendingExportCbsBytes = bytes
+            val filename = ExportFilenameFormat.generateFilename(save, "cbs", viewModel.exportFilenameFormat.value)
+            exportCbsLauncher.launch(filename)
+        } else {
+            showToast("Failed to export CodeBreaker save")
+        }
+    }
+
+    private fun triggerExportXps(save: Ps2Save) {
+        val bytes = viewModel.exportXps(save.directoryName)
+        if (bytes != null) {
+            pendingExportXpsBytes = bytes
+            val filename = ExportFilenameFormat.generateFilename(save, "xps", viewModel.exportFilenameFormat.value)
+            exportXpsLauncher.launch(filename)
+        } else {
+            showToast("Failed to export SharkPort / X-Port save")
         }
     }
 

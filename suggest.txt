@@ -1,0 +1,25 @@
+# Feature & Enhancement Suggestions for PS2 Memory Card Editor
+
+## 1. Save Transfer & Multi-Save Operations
+- Card-to-Card Transfer (Dual Slot Mode):
+  - Load two cards simultaneously or copy saves directly between cards, mimicking the classic PS2 BIOS browser transfer without needing manual export/re-import.
+- Batch Selection & Bulk Operations:
+  - Multi-select saves to batch export (to ZIP, PSU, MAX) or bulk delete.
+
+## 2. Save Format Compatibility
+- CodeBreaker (.cbs) & X-Port (.xps) Support:
+  - Expand save formats to support `.cbs` and `.xps` import/export alongside `.psu` and `.max` (covers most saves on GameFAQs).
+- Emulator Storage Integration:
+  - Quick shortcuts / auto-detection for emulator memory card directories (AetherSX2, NetherSX2, PCSX2).
+
+## 3. Interactive Save Tweaks & Visuals
+- Copy-Protection Flag Toggle:
+  - View and toggle the copy-protected / read-only attribute on saves.
+- Interactive 3D Icon Viewer:
+  - Enable touch-drag rotation and zoom for the 3D polygonal save icons inside the Save Details sheet.
+- Save Timestamp Editor:
+  - Edit save creation and modification dates.
+
+## 4. Hex Editor Enhancements
+- Inline Byte Editing:
+  - Turn the read-only Hex Inspector into an editable hex editor with undo/redo and write-back support for hex tweaking.

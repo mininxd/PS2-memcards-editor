@@ -41,7 +41,7 @@ fun SettingsDialog(
     hasRecentCards: Boolean,
     onClearRecentCards: () -> Unit,
     onDismiss: () -> Unit,
-    versionName: String = "1.3.0"
+    versionName: String = "1.3.1"
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -77,7 +77,7 @@ fun SettingsDialog(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Choose the naming convention for exported PSU, MAX, or ZIP saves:",
+                    text = "Choose the naming convention for exported PSU, MAX, CBS, XPS, or ZIP saves:",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
