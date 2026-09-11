@@ -264,39 +264,6 @@ fun SaveDetailModal(
                             Text("Edit", style = MaterialTheme.typography.labelSmall)
                         }
                     }
-
-                    // icon.sys Metadata (compact row if present)
-                    if (save.iconSys != null) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 6.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "icon.sys: ",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = buildString {
-                                    append("Model: ")
-                                    append(save.iconSys.iconFile.ifBlank { "N/A" })
-                                    if (save.iconSys.copyIconFile.isNotBlank()) {
-                                        append(" • Copy: ")
-                                        append(save.iconSys.copyIconFile)
-                                    }
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
                 }
             }
 
@@ -400,7 +367,9 @@ fun SaveDetailModal(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) {
-                    Text("PSU", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("PSU", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
 
                 FilledTonalButton(
@@ -411,7 +380,9 @@ fun SaveDetailModal(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) {
-                    Text("MAX", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("MAX", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
 
                 FilledTonalButton(
@@ -422,7 +393,9 @@ fun SaveDetailModal(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) {
-                    Text("CBS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("CBS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
 
                 FilledTonalButton(
@@ -433,7 +406,9 @@ fun SaveDetailModal(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) {
-                    Text("XPS", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("XPS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
             }
 

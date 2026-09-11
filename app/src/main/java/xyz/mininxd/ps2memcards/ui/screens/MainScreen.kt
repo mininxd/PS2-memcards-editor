@@ -22,7 +22,7 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -100,25 +100,55 @@ fun MainScreen(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
             if (!stats.isFormatted) {
-                ExtendedFloatingActionButton(
+                FloatingActionButton(
                     onClick = onFormatCard,
-                    expanded = true,
-                    icon = { Icon(Icons.Default.Save, contentDescription = null) },
-                    text = { Text("Format Card") },
-                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.height(40.dp),
+                    shape = RoundedCornerShape(10.dp),
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Format Card",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             } else {
-                ExtendedFloatingActionButton(
+                FloatingActionButton(
                     onClick = onImportPsu,
-                    expanded = true,
-                    icon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
-                    text = { Text("Import Save") },
-                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.height(40.dp),
+                    shape = RoundedCornerShape(10.dp),
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileUpload,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Import Save",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
     ) { paddingValues ->
