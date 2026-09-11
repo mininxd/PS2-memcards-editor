@@ -511,24 +511,35 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             is CardUiState.Loaded -> {
+                                val onSaveClick = remember(viewModel) { { save: Ps2Save -> viewModel.selectSave(save) } }
+                                val onExportPsu = remember { { save: Ps2Save -> triggerExportPsu(save) } }
+                                val onExportZip = remember { { save: Ps2Save -> triggerExportZip(save) } }
+                                val onDeleteSave = remember(viewModel) { { save: Ps2Save -> viewModel.deleteSave(save.directoryName) } }
+                                val onSearchChange = remember(viewModel) { { q: String -> viewModel.setSearchQuery(q) } }
+                                val onFilterChange = remember(viewModel) { { f: FilterType -> viewModel.setFilterType(f) } }
+                                val onSortChange = remember(viewModel) { { s: SortBy -> viewModel.setSortBy(s) } }
+                                val onImportPsu = remember { { importSaveLauncher.launch(arrayOf("*/*")) } }
+                                val onSaveCard = remember { { triggerSaveCurrentCard() } }
+                                val onFormatCard = remember(viewModel) { { viewModel.setShowFormatDialog(true) } }
+
                                 MainScreen(
                                     saves = state.saves,
                                     stats = state.stats,
                                     searchQuery = searchQuery,
-                                    onSearchChange = { viewModel.setSearchQuery(it) },
+                                    onSearchChange = onSearchChange,
                                     filterType = filterType,
-                                    onFilterChange = { viewModel.setFilterType(it) },
+                                    onFilterChange = onFilterChange,
                                     sortBy = sortBy,
-                                    onSortChange = { viewModel.setSortBy(it) },
-                                    onSaveClick = { viewModel.selectSave(it) },
-                                    onExportPsu = { triggerExportPsu(it) },
-                                    onExportZip = { triggerExportZip(it) },
-                                    onDeleteSave = { viewModel.deleteSave(it.directoryName) },
-                                    onImportPsu = { importSaveLauncher.launch(arrayOf("*/*")) },
+                                    onSortChange = onSortChange,
+                                    onSaveClick = onSaveClick,
+                                    onExportPsu = onExportPsu,
+                                    onExportZip = onExportZip,
+                                    onDeleteSave = onDeleteSave,
+                                    onImportPsu = onImportPsu,
                                     hasUnsavedChanges = hasUnsavedChanges,
                                     isInMemoryOnly = isInMemoryOnly,
-                                    onSaveCard = { triggerSaveCurrentCard() },
-                                    onFormatCard = { viewModel.setShowFormatDialog(true) }
+                                    onSaveCard = onSaveCard,
+                                    onFormatCard = onFormatCard
                                 )
                             }
                             is CardUiState.Error -> {

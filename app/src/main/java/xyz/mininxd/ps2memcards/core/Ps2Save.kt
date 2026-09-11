@@ -35,6 +35,8 @@ data class Ps2Save(
     val fullDisplayTitle: String = if (subtitle.isNotBlank()) "$displayTitle • $subtitle" else displayTitle
     val modifiedDateOnly: String = modifiedDate.substringBefore(' ')
     val searchKey: String = "${displayTitle.lowercase()} ${directoryName.lowercase()} ${subtitle.lowercase()}"
+    val sizeText: String = "$sizeInKb KB"
+    val firstInitial: String = (displayTitle.firstOrNull() ?: 'P').uppercase()
 
     val fileCount: Int get() = files.size
 }

@@ -310,10 +310,10 @@ fun MainScreen(
                     ) { save ->
                         SaveCard(
                             save = save,
-                            onClick = { onSaveClick(save) },
-                            onExportPsu = { onExportPsu(save) },
-                            onExportZip = { onExportZip(save) },
-                            onDelete = { onDeleteSave(save) }
+                            onClick = onSaveClick,
+                            onExportPsu = onExportPsu,
+                            onExportZip = onExportZip,
+                            onDelete = onDeleteSave
                         )
                     }
                 }
