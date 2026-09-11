@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SaveAs
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Divider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -46,6 +47,7 @@ fun AppHeader(
     onSaveCardAs: () -> Unit,
     onFormatCard: () -> Unit,
     onShowStats: () -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -88,6 +90,16 @@ fun AppHeader(
                     contentDescription = "New Card",
                     tint = MaterialTheme.colorScheme.primary
                 )
+            }
+
+            if (cardName == null && onOpenSettings != null) {
+                IconButton(onClick = onOpenSettings) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             if (cardName != null) {
@@ -160,6 +172,17 @@ fun AppHeader(
                             onFormatCard()
                         }
                     )
+                    if (onOpenSettings != null) {
+                        Divider()
+                        DropdownMenuItem(
+                            text = { Text("Settings") },
+                            leadingIcon = { Icon(Icons.Default.Settings, null) },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenSettings()
+                            }
+                        )
+                    }
                 }
             }
         }

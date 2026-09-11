@@ -46,6 +46,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import xyz.mininxd.ps2memcards.core.ExportFilenameFormat
 import xyz.mininxd.ps2memcards.core.MemcardFormatter
 import xyz.mininxd.ps2memcards.core.Ps2Save
 import xyz.mininxd.ps2memcards.ui.components.AppHeader
@@ -54,6 +55,7 @@ import xyz.mininxd.ps2memcards.ui.components.CreateCardDialog
 import xyz.mininxd.ps2memcards.ui.components.FormatCardDialog
 import xyz.mininxd.ps2memcards.ui.components.HexViewerDialog
 import xyz.mininxd.ps2memcards.ui.components.SaveDetailModal
+import xyz.mininxd.ps2memcards.ui.components.SettingsDialog
 import xyz.mininxd.ps2memcards.ui.screens.EmptyStateScreen
 import xyz.mininxd.ps2memcards.ui.screens.MainScreen
 import xyz.mininxd.ps2memcards.ui.theme.PS2MemcardTheme
@@ -91,7 +93,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private val openCardLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        uri?.let { loadCardFromUri(it) }
+        uri?.let {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+                try {
+                    contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (_: Exception) {}
+            }
+            loadCardFromUri(it)
+        }
     }
 
     private val selectSaveDirectoryLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -193,7 +207,7 @@ class MainActivity : ComponentActivity() {
                             stream.write(rawData)
                         }
                         withContext(Dispatchers.Main) {
-                            viewModel.markCardSaved(targetFile.uri, cardName)
+                            viewModel.markCardSaved(targetFile.uri, cardName, this@MainActivity)
                             showToast("Saved $cardName to $dirName successfully!")
                             val action = pendingActionAfterSave
                             pendingActionAfterSave = null
@@ -282,6 +296,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        viewModel.initSettings(this)
+
         // Load persisted custom directory
         val prefs = getSharedPreferences("memcard_prefs", Context.MODE_PRIVATE)
         val savedDirUri = prefs.getString("custom_dir_uri", null)
@@ -310,6 +326,9 @@ class MainActivity : ComponentActivity() {
                 val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsState()
                 val customDirectoryName by viewModel.customDirectoryName.collectAsState()
                 val updateStatus by viewModel.updateStatus.collectAsState()
+                val recentCards by viewModel.recentCards.collectAsState()
+                val exportFilenameFormat by viewModel.exportFilenameFormat.collectAsState()
+                val showSettingsDialog by viewModel.showSettingsDialog.collectAsState()
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -389,7 +408,8 @@ class MainActivity : ComponentActivity() {
                             onSaveCard = { triggerSaveCurrentCard() },
                             onSaveCardAs = { triggerSaveCardAs() },
                             onFormatCard = { viewModel.setShowFormatDialog(true) },
-                            onShowStats = { viewModel.setShowStatsDialog(true) }
+                            onShowStats = { viewModel.setShowStatsDialog(true) },
+                            onOpenSettings = { viewModel.setShowSettingsDialog(true) }
                         )
                     },
                     snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -405,6 +425,17 @@ class MainActivity : ComponentActivity() {
                                 EmptyStateScreen(
                                     onOpenCard = { openCardLauncher.launch(arrayOf("*/*")) },
                                     onCreateCard = { viewModel.setShowCreateDialog(true) },
+                                    recentCards = recentCards,
+                                    onOpenRecentCard = { recent ->
+                                        loadCardFromUri(Uri.parse(recent.uriString))
+                                    },
+                                    onRemoveRecentCard = { uriStr ->
+                                        viewModel.removeRecentCard(this@MainActivity, uriStr)
+                                    },
+                                    onClearRecentCards = {
+                                        viewModel.clearRecentCards(this@MainActivity)
+                                    },
+                                    onOpenSettings = { viewModel.setShowSettingsDialog(true) },
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
@@ -551,6 +582,21 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { viewModel.closeHexViewer() }
                     )
                 }
+
+                if (showSettingsDialog) {
+                    SettingsDialog(
+                        currentFormat = exportFilenameFormat,
+                        onFormatSelected = { viewModel.setExportFilenameFormat(this@MainActivity, it) },
+                        hasRecentCards = recentCards.isNotEmpty(),
+                        onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
+                        onDismiss = { viewModel.setShowSettingsDialog(false) },
+                        versionName = try {
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.1"
+                        } catch (_: Exception) {
+                            "1.2.1"
+                        }
+                    )
+                }
             }
         }
     }
@@ -585,7 +631,7 @@ class MainActivity : ComponentActivity() {
                             stream.write(rawData)
                         }
                         withContext(Dispatchers.Main) {
-                            viewModel.markCardSaved(cardUri, cardName)
+                            viewModel.markCardSaved(cardUri, cardName, this@MainActivity)
                             showToast("Saved $cardName successfully!")
                             val action = pendingActionAfterSave
                             pendingActionAfterSave = null
@@ -623,14 +669,15 @@ class MainActivity : ComponentActivity() {
 
     private fun loadCardFromUri(uri: Uri) {
         val fileName = queryFileName(uri) ?: "MemoryCard.ps2"
-        viewModel.loadCardFromUri(contentResolver, uri, fileName)
+        viewModel.loadCardFromUri(contentResolver, uri, fileName, this)
     }
 
     private fun triggerExportPsu(save: Ps2Save) {
         val bytes = viewModel.exportPsu(save.directoryName)
         if (bytes != null) {
             pendingExportPsuBytes = bytes
-            exportPsuLauncher.launch("${save.directoryName}.psu")
+            val filename = ExportFilenameFormat.generateFilename(save, "psu", viewModel.exportFilenameFormat.value)
+            exportPsuLauncher.launch(filename)
         } else {
             showToast("Failed to export PSU")
         }
@@ -640,7 +687,8 @@ class MainActivity : ComponentActivity() {
         val bytes = viewModel.exportMax(save.directoryName)
         if (bytes != null) {
             pendingExportMaxBytes = bytes
-            exportMaxLauncher.launch("${save.directoryName}.max")
+            val filename = ExportFilenameFormat.generateFilename(save, "max", viewModel.exportFilenameFormat.value)
+            exportMaxLauncher.launch(filename)
         } else {
             showToast("Failed to export Action Replay MAX save")
         }
@@ -650,7 +698,8 @@ class MainActivity : ComponentActivity() {
         val bytes = viewModel.exportZip(save.directoryName)
         if (bytes != null) {
             pendingExportZipBytes = bytes
-            exportZipLauncher.launch("${save.directoryName}.zip")
+            val filename = ExportFilenameFormat.generateFilename(save, "zip", viewModel.exportFilenameFormat.value)
+            exportZipLauncher.launch(filename)
         } else {
             showToast("Failed to export ZIP")
         }

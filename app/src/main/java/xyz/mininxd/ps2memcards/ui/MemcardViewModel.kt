@@ -1,15 +1,19 @@
 package xyz.mininxd.ps2memcards.ui
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import xyz.mininxd.ps2memcards.core.CardStats
+import xyz.mininxd.ps2memcards.core.ExportFilenameFormat
 import xyz.mininxd.ps2memcards.core.MemcardFormatter
 import xyz.mininxd.ps2memcards.core.Ps2DirectoryEntry
 import xyz.mininxd.ps2memcards.core.Ps2Memcard
 import xyz.mininxd.ps2memcards.core.Ps2Save
 import xyz.mininxd.ps2memcards.core.Ps2Timestamp
 import xyz.mininxd.ps2memcards.core.PsuHandler
+import xyz.mininxd.ps2memcards.core.RecentCard
+import xyz.mininxd.ps2memcards.core.RecentCardsManager
 import xyz.mininxd.ps2memcards.core.UpdateChecker
 import xyz.mininxd.ps2memcards.core.UpdateStatus
 import kotlinx.coroutines.Dispatchers
@@ -92,6 +96,44 @@ class MemcardViewModel : ViewModel() {
     private val _updateStatus = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
     val updateStatus: StateFlow<UpdateStatus> = _updateStatus.asStateFlow()
 
+    private val _recentCards = MutableStateFlow<List<RecentCard>>(emptyList())
+    val recentCards: StateFlow<List<RecentCard>> = _recentCards.asStateFlow()
+
+    private val _exportFilenameFormat = MutableStateFlow(ExportFilenameFormat.GAME_NAME_AND_PRODUCT_ID)
+    val exportFilenameFormat: StateFlow<ExportFilenameFormat> = _exportFilenameFormat.asStateFlow()
+
+    private val _showSettingsDialog = MutableStateFlow(false)
+    val showSettingsDialog: StateFlow<Boolean> = _showSettingsDialog.asStateFlow()
+
+    fun initSettings(context: Context) {
+        _recentCards.value = RecentCardsManager.getRecentCards(context)
+        _exportFilenameFormat.value = ExportFilenameFormat.getSavedFormat(context)
+    }
+
+    fun addRecentCard(context: Context, recent: RecentCard) {
+        RecentCardsManager.addRecentCard(context, recent)
+        _recentCards.value = RecentCardsManager.getRecentCards(context)
+    }
+
+    fun removeRecentCard(context: Context, uriString: String) {
+        RecentCardsManager.removeRecentCard(context, uriString)
+        _recentCards.value = RecentCardsManager.getRecentCards(context)
+    }
+
+    fun clearRecentCards(context: Context) {
+        RecentCardsManager.clearAll(context)
+        _recentCards.value = emptyList()
+    }
+
+    fun setExportFilenameFormat(context: Context, format: ExportFilenameFormat) {
+        _exportFilenameFormat.value = format
+        ExportFilenameFormat.saveFormat(context, format)
+    }
+
+    fun setShowSettingsDialog(show: Boolean) {
+        _showSettingsDialog.value = show
+    }
+
     fun checkUpdate(currentVersion: String) {
         viewModelScope.launch {
             _updateStatus.value = UpdateStatus.Checking
@@ -112,7 +154,7 @@ class MemcardViewModel : ViewModel() {
         _customDirectoryName.value = name
     }
 
-    fun markCardSaved(savedUri: Uri? = null, savedName: String? = null) {
+    fun markCardSaved(savedUri: Uri? = null, savedName: String? = null, context: Context? = null) {
         _hasUnsavedChanges.value = false
         val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
         val updated = current.copy(
@@ -120,6 +162,19 @@ class MemcardViewModel : ViewModel() {
             cardUri = savedUri ?: current.cardUri
         )
         setLoadedState(updated)
+        if (context != null && savedUri != null) {
+            val name = savedName ?: updated.cardName
+            addRecentCard(
+                context,
+                RecentCard(
+                    uriString = savedUri.toString(),
+                    fileName = name,
+                    sizeBytes = updated.memcard.cardSize.toLong(),
+                    saveCount = updated.saves.size,
+                    lastOpened = System.currentTimeMillis()
+                )
+            )
+        }
     }
 
     fun setLoading(message: String) {
@@ -181,7 +236,12 @@ class MemcardViewModel : ViewModel() {
         _snackbarMessage.value = null
     }
 
-    fun loadCardFromUri(contentResolver: android.content.ContentResolver, uri: Uri, fileName: String) {
+    fun loadCardFromUri(
+        contentResolver: android.content.ContentResolver,
+        uri: Uri,
+        fileName: String,
+        context: Context? = null
+    ) {
         viewModelScope.launch {
             _uiState.value = CardUiState.Loading("Reading $fileName...")
             withContext(Dispatchers.IO) {
@@ -204,6 +264,18 @@ class MemcardViewModel : ViewModel() {
                             stats = stats
                         )
                         setLoadedState(loaded)
+                        if (context != null) {
+                            addRecentCard(
+                                context,
+                                RecentCard(
+                                    uriString = uri.toString(),
+                                    fileName = fileName,
+                                    sizeBytes = bytes.size.toLong(),
+                                    saveCount = saves.size,
+                                    lastOpened = System.currentTimeMillis()
+                                )
+                            )
+                        }
                         _snackbarMessage.value = "Loaded $fileName (${saves.size} saves)"
                     } else {
                         _uiState.value = CardUiState.Error("Invalid PS2 Memory Card image format.")
