@@ -1,5 +1,6 @@
 package xyz.mininxd.ps2memcards.core
 
+import androidx.compose.runtime.Immutable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.SimpleDateFormat
@@ -11,6 +12,7 @@ import java.util.TimeZone
 /**
  * PS2 Memory Card Directory Entry (512 bytes)
  */
+@Immutable
 data class Ps2DirectoryEntry(
     val mode: Int,
     val length: Long,
@@ -138,6 +140,7 @@ data class Ps2DirectoryEntry(
 /**
  * PS2 8-byte Time of Day timestamp (Japan timezone UTC+9)
  */
+@Immutable
 data class Ps2Timestamp(
     val second: Int = 0,
     val minute: Int = 0,

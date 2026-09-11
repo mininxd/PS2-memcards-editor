@@ -1196,7 +1196,17 @@ class Ps2Memcard private constructor(
         }
 
         if (ok) {
-            invalidateSavesCache()
+            val currentCache = cachedSaves
+            if (currentCache != null) {
+                cachedSaves = currentCache.map { s ->
+                    if (s.directoryName == saveName) {
+                        s.copy(
+                            isProtected = isProtected,
+                            dirEntry = s.dirEntry.copy(mode = newMode)
+                        )
+                    } else s
+                }
+            }
         }
         return ok
     }
@@ -1228,7 +1238,18 @@ class Ps2Memcard private constructor(
         }
 
         if (ok) {
-            invalidateSavesCache()
+            val currentCache = cachedSaves
+            if (currentCache != null) {
+                cachedSaves = currentCache.map { s ->
+                    if (s.directoryName == saveName) {
+                        s.copy(
+                            createdDate = created.toFormattedString(),
+                            modifiedDate = modified.toFormattedString(),
+                            dirEntry = s.dirEntry.copy(created = created, modified = modified)
+                        )
+                    } else s
+                }
+            }
         }
         return ok
     }

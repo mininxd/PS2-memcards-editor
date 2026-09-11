@@ -539,7 +539,7 @@ object Ps2IconDecoder {
 
         // 5. Software Triangle Rasterizer with Z-buffer
         val outPixels = IntArray(TEX_PIXEL_COUNT)
-        val depthBuffer = FloatArray(TEX_PIXEL_COUNT) { Float.POSITIVE_INFINITY }
+        val depthBuffer = FloatArray(TEX_PIXEL_COUNT).apply { fill(Float.POSITIVE_INFINITY) }
         var drawnPixelCount = 0
 
         val triangleCount = vertexCount / 3
@@ -579,10 +579,15 @@ object Ps2IconDecoder {
             }
             val invDenom = 1.0f / denom
 
-            val minPx = maxOf(0, floor(minOf(x0, minOf(x1, x2))).toInt())
-            val maxPx = minOf(127, ceil(maxOf(x0, maxOf(x1, x2))).toInt())
-            val minPy = maxOf(0, floor(minOf(y0, minOf(y1, y2))).toInt())
-            val maxPy = minOf(127, ceil(maxOf(y0, maxOf(y1, y2))).toInt())
+            val minXVal = minOf(x0, minOf(x1, x2))
+            val maxXVal = maxOf(x0, maxOf(x1, x2))
+            val minYVal = minOf(y0, minOf(y1, y2))
+            val maxYVal = maxOf(y0, maxOf(y1, y2))
+
+            val minPx = maxOf(0, minXVal.toInt())
+            val maxPx = minOf(127, maxXVal.toInt() + 1)
+            val minPy = maxOf(0, minYVal.toInt())
+            val maxPy = minOf(127, maxYVal.toInt() + 1)
 
             if (minPx > maxPx || minPy > maxPy) continue
 
@@ -599,22 +604,34 @@ object Ps2IconDecoder {
             val uOverZ2 = u2 * invZ2; val vOverZ2 = v2 * invZ2
             val rOverZ2 = r2 * invZ2; val gOverZ2 = g2 * invZ2; val bOverZ2 = b2 * invZ2
 
-            for (py in minPy..maxPy) {
-                val cy = py + 0.5f
-                val rowOffset = py * 128
-                for (px in minPx..maxPx) {
-                    val cx = px + 0.5f
+            val dw0_dx = (y1 - y2) * invDenom
+            val dw0_dy = (x2 - x1) * invDenom
+            val dw1_dx = (y2 - y0) * invDenom
+            val dw1_dy = (x0 - x2) * invDenom
 
-                    val w0 = ((y1 - y2) * (cx - x2) + (x2 - x1) * (cy - y2)) * invDenom
-                    if (w0 < 0f) continue
-                    val w1 = ((y2 - y0) * (cx - x2) + (x0 - x2) * (cy - y2)) * invDenom
-                    if (w1 < 0f) continue
+            val startCx = minPx + 0.5f
+            val startCy = minPy + 0.5f
+            var rowW0 = ((y1 - y2) * (startCx - x2) + (x2 - x1) * (startCy - y2)) * invDenom
+            var rowW1 = ((y2 - y0) * (startCx - x2) + (x0 - x2) * (startCy - y2)) * invDenom
+
+            for (py in minPy..maxPy) {
+                var curW0 = rowW0
+                var curW1 = rowW1
+                val rowOffset = py shl 7
+
+                for (px in minPx..maxPx) {
+                    val w0 = curW0
+                    val w1 = curW1
+                    curW0 += dw0_dx
+                    curW1 += dw1_dx
+
+                    if (w0 < 0f || w1 < 0f) continue
                     val w2 = 1.0f - w0 - w1
                     if (w2 < 0f) continue
 
                     val interpInvZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2
                     val z = 1.0f / interpInvZ
-                    val pIdx = rowOffset + px
+                    val pIdx = rowOffset or px
 
                     if (z < depthBuffer[pIdx]) {
                         depthBuffer[pIdx] = z
@@ -625,9 +642,15 @@ object Ps2IconDecoder {
                         val g = (w0 * gOverZ0 + w1 * gOverZ1 + w2 * gOverZ2) * z
                         val b = (w0 * bOverZ0 + w1 * bOverZ1 + w2 * bOverZ2) * z
 
-                        val tx = ((u - floor(u)) * 128f).toInt().coerceIn(0, 127)
-                        val ty = ((v - floor(v)) * 128f).toInt().coerceIn(0, 127)
-                        val texCol = texPixels[ty * 128 + tx]
+                        val uFrac = u - u.toInt()
+                        val uNorm = if (uFrac < 0f) uFrac + 1f else uFrac
+                        val tx = (uNorm * 127.99f).toInt().coerceIn(0, 127)
+
+                        val vFrac = v - v.toInt()
+                        val vNorm = if (vFrac < 0f) vFrac + 1f else vFrac
+                        val ty = (vNorm * 127.99f).toInt().coerceIn(0, 127)
+
+                        val texCol = texPixels[(ty shl 7) or tx]
 
                         val texR = (texCol shr 16) and 0xFF
                         val texG = (texCol shr 8) and 0xFF
@@ -641,6 +664,8 @@ object Ps2IconDecoder {
                         drawnPixelCount++
                     }
                 }
+                rowW0 += dw0_dy
+                rowW1 += dw1_dy
             }
         }
 
@@ -694,9 +719,12 @@ object Ps2IconDecoder {
     }
 
     private fun rgb1555ToArgb8888(pixel: Int): Int {
-        val r = ((pixel and 0x001F) * 255) / 31
-        val g = (((pixel shr 5) and 0x001F) * 255) / 31
-        val b = (((pixel shr 10) and 0x001F) * 255) / 31
+        val r5 = pixel and 0x1F
+        val g5 = (pixel shr 5) and 0x1F
+        val b5 = (pixel shr 10) and 0x1F
+        val r = (r5 shl 3) or (r5 shr 2)
+        val g = (g5 shl 3) or (g5 shr 2)
+        val b = (b5 shl 3) or (b5 shr 2)
         return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
     }
 }

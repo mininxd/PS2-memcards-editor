@@ -59,7 +59,7 @@ fun SaveCard(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val imageBitmap = remember(save.iconBitmap) { save.iconBitmap?.asImageBitmap() }
+    val imageBitmap = save.iconImageBitmap
 
     Card(
         modifier = modifier
@@ -117,17 +117,9 @@ fun SaveCard(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                val titleText = remember(save.displayTitle, save.displaySubtitle) {
-                    if (save.displaySubtitle.isNotBlank()) {
-                        "${save.displayTitle} • ${save.displaySubtitle}"
-                    } else {
-                        save.displayTitle
-                    }
-                }
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = titleText,
+                        text = save.fullDisplayTitle,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -193,7 +185,7 @@ fun SaveCard(
                     )
 
                     Text(
-                        text = save.modifiedDate.split(" ").firstOrNull() ?: save.modifiedDate,
+                        text = save.modifiedDateOnly,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline,
                         maxLines = 1,

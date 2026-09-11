@@ -232,42 +232,48 @@ class MemcardViewModel : ViewModel() {
         _hexViewerData.value = null
     }
 
-    fun setSaveProtection(saveName: String, isProtected: Boolean): Boolean {
-        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return false
-        val ok = current.memcard.setSaveProtection(saveName, isProtected)
-        if (ok) {
-            val saves = current.memcard.listSaves(forceRefresh = true)
-            val stats = current.memcard.getStats()
-            _hasUnsavedChanges.value = true
-            val updatedSave = saves.firstOrNull { it.directoryName == saveName }
-            setLoadedState(current.copy(saves = saves, stats = stats))
-            if (_selectedSave.value?.directoryName == saveName) {
-                _selectedSave.value = updatedSave
-            }
-            _snackbarMessage.value = if (isProtected) {
-                "Marked $saveName as copy-protected"
-            } else {
-                "Removed copy-protection from $saveName"
+    fun setSaveProtection(saveName: String, isProtected: Boolean) {
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
+        viewModelScope.launch {
+            withContext(Dispatchers.Default) {
+                val ok = current.memcard.setSaveProtection(saveName, isProtected)
+                if (ok) {
+                    val saves = current.memcard.listSaves()
+                    val stats = current.memcard.getStats()
+                    _hasUnsavedChanges.value = true
+                    val updatedSave = saves.firstOrNull { it.directoryName == saveName }
+                    setLoadedState(current.copy(saves = saves, stats = stats))
+                    if (_selectedSave.value?.directoryName == saveName) {
+                        _selectedSave.value = updatedSave
+                    }
+                    _snackbarMessage.value = if (isProtected) {
+                        "Marked $saveName as copy-protected"
+                    } else {
+                        "Removed copy-protection from $saveName"
+                    }
+                }
             }
         }
-        return ok
     }
 
-    fun updateSaveTimestamps(saveName: String, created: Ps2Timestamp, modified: Ps2Timestamp): Boolean {
-        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return false
-        val ok = current.memcard.updateSaveTimestamps(saveName, created, modified)
-        if (ok) {
-            val saves = current.memcard.listSaves(forceRefresh = true)
-            val stats = current.memcard.getStats()
-            _hasUnsavedChanges.value = true
-            val updatedSave = saves.firstOrNull { it.directoryName == saveName }
-            setLoadedState(current.copy(saves = saves, stats = stats))
-            if (_selectedSave.value?.directoryName == saveName) {
-                _selectedSave.value = updatedSave
+    fun updateSaveTimestamps(saveName: String, created: Ps2Timestamp, modified: Ps2Timestamp) {
+        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
+        viewModelScope.launch {
+            withContext(Dispatchers.Default) {
+                val ok = current.memcard.updateSaveTimestamps(saveName, created, modified)
+                if (ok) {
+                    val saves = current.memcard.listSaves()
+                    val stats = current.memcard.getStats()
+                    _hasUnsavedChanges.value = true
+                    val updatedSave = saves.firstOrNull { it.directoryName == saveName }
+                    setLoadedState(current.copy(saves = saves, stats = stats))
+                    if (_selectedSave.value?.directoryName == saveName) {
+                        _selectedSave.value = updatedSave
+                    }
+                    _snackbarMessage.value = "Updated timestamps for $saveName"
+                }
             }
-            _snackbarMessage.value = "Updated timestamps for $saveName"
         }
-        return ok
     }
 
     fun clearSnackbar() {

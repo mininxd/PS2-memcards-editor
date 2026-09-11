@@ -2,6 +2,8 @@ package xyz.mininxd.ps2memcards.core
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * Represents a PS2 Game Save folder on a memory card.
@@ -21,13 +23,18 @@ data class Ps2Save(
     val dirEntry: Ps2DirectoryEntry,
     val files: List<Ps2SaveFile> = emptyList(),
     val iconSys: Ps2IconSys? = null,
-    val iconBitmap: Bitmap? = null
+    val iconBitmap: Bitmap? = null,
+    val iconImageBitmap: ImageBitmap? = iconBitmap?.asImageBitmap()
 ) {
-    val sizeInKb: Long get() = (sizeInBytes + 1023) / 1024
-    val sizeInMb: Double get() = sizeInBytes / (1024.0 * 1024.0)
+    val sizeInKb: Long = (sizeInBytes + 1023) / 1024
+    val sizeInMb: Double = sizeInBytes / (1024.0 * 1024.0)
 
-    val displayTitle: String get() = title.ifBlank { directoryName }
-    val displaySubtitle: String get() = subtitle
+    val displayTitle: String = title.ifBlank { directoryName }
+    val displaySubtitle: String = subtitle
+
+    val fullDisplayTitle: String = if (subtitle.isNotBlank()) "$displayTitle • $subtitle" else displayTitle
+    val modifiedDateOnly: String = modifiedDate.substringBefore(' ')
+    val searchKey: String = "${displayTitle.lowercase()} ${directoryName.lowercase()} ${subtitle.lowercase()}"
 
     val fileCount: Int get() = files.size
 }

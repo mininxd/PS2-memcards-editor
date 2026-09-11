@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
@@ -84,7 +85,7 @@ fun SaveDetailModal(
                 .padding(bottom = 24.dp)
         ) {
             // Header
-            val imageBitmap = remember(save.iconBitmap) { save.iconBitmap?.asImageBitmap() }
+            val imageBitmap = save.iconImageBitmap
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically

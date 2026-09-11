@@ -47,6 +47,16 @@ object Ps2ShiftJis {
      * e.g. Ｆｉｎａｌ　Ｆａｎｔａｓｙ -> Final Fantasy
      */
     fun convertFullWidthToHalfWidth(input: String): String {
+        var hasFullWidth = false
+        for (i in 0 until input.length) {
+            val code = input[i].code
+            if (code == 0x3000 || code in 0xFF01..0xFF5E) {
+                hasFullWidth = true
+                break
+            }
+        }
+        if (!hasFullWidth) return input
+
         val sb = StringBuilder(input.length)
         for (ch in input) {
             when (ch.code) {

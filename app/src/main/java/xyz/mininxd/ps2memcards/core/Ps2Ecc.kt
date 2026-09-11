@@ -89,8 +89,7 @@ object Ps2Ecc {
 
         for (i in 0 until pageCount) {
             System.arraycopy(raw, srcPos, ecc, dstPos, 512)
-            val spare = generateSpareArea(raw, srcPos)
-            System.arraycopy(spare, 0, ecc, dstPos + 512, 16)
+            writeSpareArea(raw, srcPos, ecc, dstPos + 512)
             srcPos += 512
             dstPos += 528
         }

@@ -72,10 +72,7 @@ fun MainScreen(
             saves
         } else {
             saves.filter { save ->
-                val matchesQuery = query.isEmpty() ||
-                        save.displayTitle.lowercase().contains(query) ||
-                        save.directoryName.lowercase().contains(query) ||
-                        save.subtitle.lowercase().contains(query)
+                val matchesQuery = query.isEmpty() || save.searchKey.contains(query)
 
                 val matchesFilter = when (filterType) {
                     FilterType.ALL -> true
@@ -88,7 +85,7 @@ fun MainScreen(
             }
         }
         when (sortBy) {
-            SortBy.NAME_ASC -> filtered.sortedBy { it.displayTitle.lowercase() }
+            SortBy.NAME_ASC -> filtered.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayTitle })
             SortBy.DATE_DESC -> filtered.sortedByDescending { it.modifiedDate }
             SortBy.SIZE_DESC -> filtered.sortedByDescending { it.sizeInBytes }
         }

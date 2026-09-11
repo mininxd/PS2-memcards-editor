@@ -1,11 +1,13 @@
 package xyz.mininxd.ps2memcards.core
 
+import androidx.compose.runtime.Immutable
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 /**
  * Parsed PS2 icon.sys file metadata
  */
+@Immutable
 data class Ps2IconSys(
     val header: String = "PS2D",
     val titleBreakOffset: Int = 0,
