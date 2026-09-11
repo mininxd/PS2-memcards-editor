@@ -380,6 +380,7 @@ class MainActivity : ComponentActivity() {
                 val recentCards by viewModel.recentCards.collectAsState()
                 val exportFilenameFormat by viewModel.exportFilenameFormat.collectAsState()
                 val showSettingsDialog by viewModel.showSettingsDialog.collectAsState()
+                val isRefreshing by viewModel.isRefreshing.collectAsState()
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -392,6 +393,7 @@ class MainActivity : ComponentActivity() {
                 val currentCardName = (uiState as? CardUiState.Loaded)?.cardName
                 val isInMemoryOnly = (uiState as? CardUiState.Loaded)?.cardUri == null
                 var showUnsavedChangesDialog by remember { mutableStateOf(false) }
+                var showReloadConfirmDialog by remember { mutableStateOf(false) }
                 var editingTimestampsSave by remember { mutableStateOf<Ps2Save?>(null) }
 
                 BackHandler(enabled = (uiState is CardUiState.Loaded) && selectedSave == null) {
@@ -445,6 +447,44 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     Text("Cancel")
                                 }
+                            }
+                        }
+                    )
+                }
+
+                if (showReloadConfirmDialog) {
+                    val loaded = uiState as? CardUiState.Loaded
+                    AlertDialog(
+                        onDismissRequest = { showReloadConfirmDialog = false },
+                        shape = RoundedCornerShape(20.dp),
+                        title = {
+                            Text(
+                                text = "Discard Changes & Reload?",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = "You have unsaved changes on this memory card. Reloading will discard all unsaved edits and re-read from storage.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showReloadConfirmDialog = false
+                                    loaded?.cardUri?.let { uri ->
+                                        viewModel.reloadCard(contentResolver, uri)
+                                    }
+                                }
+                            ) {
+                                Text("Discard & Reload")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showReloadConfirmDialog = false }) {
+                                Text("Cancel")
                             }
                         }
                     )
@@ -505,9 +545,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.2"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.3"
                                         } catch (e: Exception) {
-                                            "1.3.2"
+                                            "1.3.3"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
@@ -540,6 +580,18 @@ class MainActivity : ComponentActivity() {
                                 val onImportPsu = remember { { importSaveLauncher.launch(arrayOf("*/*")) } }
                                 val onSaveCard = remember { { triggerSaveCurrentCard() } }
                                 val onFormatCard = remember(viewModel) { { viewModel.setShowFormatDialog(true) } }
+                                val onRefresh = remember(state.cardUri, hasUnsavedChanges) {
+                                    {
+                                        val uri = state.cardUri
+                                        if (uri == null) {
+                                            showToast("Card is stored in memory only (not saved to file)")
+                                        } else if (hasUnsavedChanges) {
+                                            showReloadConfirmDialog = true
+                                        } else {
+                                            viewModel.reloadCard(contentResolver, uri)
+                                        }
+                                    }
+                                }
 
                                 MainScreen(
                                     saves = state.saves,
@@ -558,7 +610,9 @@ class MainActivity : ComponentActivity() {
                                     hasUnsavedChanges = hasUnsavedChanges,
                                     isInMemoryOnly = isInMemoryOnly,
                                     onSaveCard = onSaveCard,
-                                    onFormatCard = onFormatCard
+                                    onFormatCard = onFormatCard,
+                                    isRefreshing = isRefreshing,
+                                    onRefresh = onRefresh
                                 )
                             }
                             is CardUiState.Error -> {
@@ -695,9 +749,9 @@ class MainActivity : ComponentActivity() {
                         onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
                         onDismiss = { viewModel.setShowSettingsDialog(false) },
                         versionName = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.2"
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.3"
                         } catch (_: Exception) {
-                            "1.3.2"
+                            "1.3.3"
                         }
                     )
                 }

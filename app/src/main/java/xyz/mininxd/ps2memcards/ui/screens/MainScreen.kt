@@ -15,13 +15,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +34,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -45,6 +49,7 @@ import xyz.mininxd.ps2memcards.ui.SortBy
 import xyz.mininxd.ps2memcards.ui.components.SaveCard
 import xyz.mininxd.ps2memcards.ui.components.StorageBar
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     saves: List<Ps2Save>,
@@ -64,6 +69,8 @@ fun MainScreen(
     isInMemoryOnly: Boolean = false,
     onSaveCard: () -> Unit = {},
     onFormatCard: () -> Unit = {},
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val filteredSaves = remember(saves, searchQuery, filterType, sortBy) {
@@ -272,54 +279,60 @@ fun MainScreen(
                     .padding(horizontal = 10.dp, vertical = 3.dp)
             )
 
-            // Save List
-            if (filteredSaves.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (!stats.isFormatted) {
-                            "Card is unformatted.\nFormat it to start storing saves."
-                        } else if (searchQuery.isNotEmpty()) {
-                            "No saves matching '$searchQuery'"
-                        } else {
-                            "No saves in this memory card"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(
-                        start = 10.dp,
-                        top = 4.dp,
-                        end = 10.dp,
-                        bottom = 80.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    items(
-                        items = filteredSaves,
-                        key = { it.directoryName },
-                        contentType = { "save_card" }
-                    ) { save ->
-                        SaveCard(
-                            save = save,
-                            onClick = onSaveClick,
-                            onExportPsu = onExportPsu,
-                            onExportZip = onExportZip,
-                            onDelete = onDeleteSave
+            // Save List with Pull-to-Refresh
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                if (filteredSaves.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (!stats.isFormatted) {
+                                "Card is unformatted.\nFormat it to start storing saves."
+                            } else if (searchQuery.isNotEmpty()) {
+                                "No saves matching '$searchQuery'"
+                            } else {
+                                "No saves in this memory card"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                            textAlign = TextAlign.Center
                         )
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 10.dp,
+                            top = 4.dp,
+                            end = 10.dp,
+                            bottom = 80.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        items(
+                            items = filteredSaves,
+                            key = { it.directoryName },
+                            contentType = { "save_card" }
+                        ) { save ->
+                            SaveCard(
+                                save = save,
+                                onClick = onSaveClick,
+                                onExportPsu = onExportPsu,
+                                onExportZip = onExportZip,
+                                onDelete = onDeleteSave
+                            )
+                        }
                     }
                 }
             }

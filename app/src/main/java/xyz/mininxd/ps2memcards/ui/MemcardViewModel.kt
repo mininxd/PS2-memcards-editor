@@ -105,6 +105,9 @@ class MemcardViewModel : ViewModel() {
     private val _showSettingsDialog = MutableStateFlow(false)
     val showSettingsDialog: StateFlow<Boolean> = _showSettingsDialog.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     fun initSettings(context: Context) {
         _recentCards.value = RecentCardsManager.getRecentCards(context)
         _exportFilenameFormat.value = ExportFilenameFormat.getSavedFormat(context)
@@ -278,6 +281,44 @@ class MemcardViewModel : ViewModel() {
 
     fun clearSnackbar() {
         _snackbarMessage.value = null
+    }
+
+    fun reloadCard(contentResolver: android.content.ContentResolver, uri: Uri) {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            withContext(Dispatchers.IO) {
+                try {
+                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (bytes == null) {
+                        _snackbarMessage.value = "Could not reload: file unavailable"
+                        return@withContext
+                    }
+                    val card = Ps2Memcard.open(bytes)
+                    if (card != null) {
+                        val saves = card.listSaves()
+                        val stats = card.getStats()
+                        _hasUnsavedChanges.value = false
+                        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard
+                        val fileName = current?.cardName ?: "MemoryCard.ps2"
+                        val loaded = CardUiState.Loaded(
+                            cardName = fileName,
+                            cardUri = uri,
+                            memcard = card,
+                            saves = saves,
+                            stats = stats
+                        )
+                        setLoadedState(loaded)
+                        _snackbarMessage.value = "Reloaded $fileName (${saves.size} saves)"
+                    } else {
+                        _snackbarMessage.value = "Invalid PS2 Memory Card image format."
+                    }
+                } catch (t: Throwable) {
+                    _snackbarMessage.value = "Failed to reload: ${t.message ?: "Error"}"
+                } finally {
+                    _isRefreshing.value = false
+                }
+            }
+        }
     }
 
     fun loadCardFromUri(
