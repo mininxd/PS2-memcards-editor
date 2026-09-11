@@ -169,7 +169,7 @@ class MemcardViewModel : ViewModel() {
                 RecentCard(
                     uriString = savedUri.toString(),
                     fileName = name,
-                    sizeBytes = updated.memcard.cardSize.toLong(),
+                    sizeBytes = updated.memcard.getRawDataDirect().size.toLong(),
                     saveCount = updated.saves.size,
                     lastOpened = System.currentTimeMillis()
                 )

@@ -49,6 +49,7 @@ import kotlinx.coroutines.withContext
 import xyz.mininxd.ps2memcards.core.ExportFilenameFormat
 import xyz.mininxd.ps2memcards.core.MemcardFormatter
 import xyz.mininxd.ps2memcards.core.Ps2Save
+import xyz.mininxd.ps2memcards.core.RecentCard
 import xyz.mininxd.ps2memcards.ui.components.AppHeader
 import xyz.mininxd.ps2memcards.ui.components.CardStatsDialog
 import xyz.mininxd.ps2memcards.ui.components.CreateCardDialog
@@ -174,6 +175,16 @@ class MainActivity : ComponentActivity() {
 
                     withContext(Dispatchers.Main) {
                         viewModel.loadCardFromBytes(name, bytes, targetFile.uri)
+                        viewModel.addRecentCard(
+                            this@MainActivity,
+                            RecentCard(
+                                uriString = targetFile.uri.toString(),
+                                fileName = name,
+                                sizeBytes = bytes.size.toLong(),
+                                saveCount = 0,
+                                lastOpened = System.currentTimeMillis()
+                            )
+                        )
                         showToast("Created and saved $name successfully!")
                     }
                 } catch (t: Throwable) {
