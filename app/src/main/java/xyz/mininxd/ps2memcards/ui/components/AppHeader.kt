@@ -92,15 +92,6 @@ fun AppHeader(
                 )
             }
 
-            if (cardName == null && onOpenSettings != null) {
-                IconButton(onClick = onOpenSettings) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
 
             if (cardName != null) {
                 if (hasUnsavedChanges || isInMemoryOnly) {
