@@ -12,8 +12,8 @@ android {
         applicationId = "xyz.mininxd.ps2memcards"
         minSdk = 26
         targetSdk = 34
-        versionCode = 9
-        versionName = "1.3.3"
+        versionCode = 10
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

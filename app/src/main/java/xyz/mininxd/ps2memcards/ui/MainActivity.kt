@@ -381,6 +381,8 @@ class MainActivity : ComponentActivity() {
                 val exportFilenameFormat by viewModel.exportFilenameFormat.collectAsState()
                 val showSettingsDialog by viewModel.showSettingsDialog.collectAsState()
                 val isRefreshing by viewModel.isRefreshing.collectAsState()
+                val canUndo by viewModel.canUndo.collectAsState()
+                val canRedo by viewModel.canRedo.collectAsState()
 
                 LaunchedEffect(snackbarMessage) {
                     snackbarMessage?.let { msg ->
@@ -496,6 +498,10 @@ class MainActivity : ComponentActivity() {
                             cardName = currentCardName,
                             hasUnsavedChanges = hasUnsavedChanges,
                             isInMemoryOnly = isInMemoryOnly,
+                            canUndo = canUndo,
+                            canRedo = canRedo,
+                            onUndo = { viewModel.undo() },
+                            onRedo = { viewModel.redo() },
                             onOpenCard = { openCardLauncher.launch(arrayOf("*/*")) },
                             onCreateCard = { viewModel.setShowCreateDialog(true) },
                             onSaveCard = { triggerSaveCurrentCard() },
@@ -545,9 +551,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.3"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.0"
                                         } catch (e: Exception) {
-                                            "1.3.3"
+                                            "1.4.0"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
@@ -749,9 +755,9 @@ class MainActivity : ComponentActivity() {
                         onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
                         onDismiss = { viewModel.setShowSettingsDialog(false) },
                         versionName = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.3.3"
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.0"
                         } catch (_: Exception) {
-                            "1.3.3"
+                            "1.4.0"
                         }
                     )
                 }
