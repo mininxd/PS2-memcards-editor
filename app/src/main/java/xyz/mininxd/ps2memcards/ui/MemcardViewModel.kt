@@ -78,14 +78,8 @@ class MemcardViewModel : ViewModel() {
     private val _showStatsDialog = MutableStateFlow(false)
     val showStatsDialog: StateFlow<Boolean> = _showStatsDialog.asStateFlow()
 
-data class HexEditorTarget(
-    val fileName: String,
-    val data: ByteArray,
-    val saveDirectoryName: String? = null
-)
-
-    private val _hexViewerData = MutableStateFlow<HexEditorTarget?>(null)
-    val hexViewerData: StateFlow<HexEditorTarget?> = _hexViewerData.asStateFlow()
+    private val _hexViewerData = MutableStateFlow<Pair<String, ByteArray>?>(null)
+    val hexViewerData: StateFlow<Pair<String, ByteArray>?> = _hexViewerData.asStateFlow()
 
     private val _hasUnsavedChanges = MutableStateFlow(false)
     val hasUnsavedChanges: StateFlow<Boolean> = _hasUnsavedChanges.asStateFlow()
@@ -230,30 +224,8 @@ data class HexEditorTarget(
         _showStatsDialog.value = show
     }
 
-    fun openHexViewer(title: String, data: ByteArray, saveDirectoryName: String? = null) {
-        _hexViewerData.value = HexEditorTarget(title, data, saveDirectoryName)
-    }
-
-    fun updateSaveFile(saveName: String, fileName: String, newData: ByteArray): Boolean {
-        val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return false
-        val ok = current.memcard.updateSaveFile(saveName, fileName, newData)
-        if (ok) {
-            val updatedSaves = current.memcard.listSaves()
-            val updatedStats = current.memcard.getStats()
-            _hasUnsavedChanges.value = true
-            setLoadedState(
-                current.copy(
-                    saves = updatedSaves,
-                    stats = updatedStats
-                )
-            )
-            // Keep viewer updated if viewing this file
-            if (_hexViewerData.value?.fileName == fileName && _hexViewerData.value?.saveDirectoryName == saveName) {
-                _hexViewerData.value = HexEditorTarget(fileName, newData, saveName)
-            }
-            _snackbarMessage.value = "Updated $fileName in $saveName"
-        }
-        return ok
+    fun openHexViewer(title: String, data: ByteArray) {
+        _hexViewerData.value = Pair(title, data)
     }
 
     fun closeHexViewer() {
@@ -437,7 +409,7 @@ data class HexEditorTarget(
             return
         }
         viewModelScope.launch {
-            _uiState.value = CardUiState.Loading("Importing save (.psu / .max)...")
+            _uiState.value = CardUiState.Loading("Importing Savegame...")
             withContext(Dispatchers.Default) {
                 try {
                     val success = current.memcard.importSave(saveBytes)

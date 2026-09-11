@@ -584,7 +584,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onInspectFileHex = { file ->
                             val data = file.data ?: (uiState as? CardUiState.Loaded)?.memcard?.getSaveFileBytes(save.directoryName, file.name) ?: ByteArray(0)
-                            viewModel.openHexViewer(file.name, data, save.directoryName)
+                            viewModel.openHexViewer(file.name, data)
                         }
                     )
                 }
@@ -628,14 +628,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                hexViewerData?.let { target ->
+                hexViewerData?.let { (title, data) ->
                     HexViewerDialog(
-                        title = target.fileName,
-                        data = target.data,
-                        saveDirectoryName = target.saveDirectoryName,
-                        onSaveFile = if (target.saveDirectoryName != null) {
-                            { newBytes -> viewModel.updateSaveFile(target.saveDirectoryName, target.fileName, newBytes) }
-                        } else null,
+                        title = title,
+                        data = data,
                         onDismiss = { viewModel.closeHexViewer() }
                     )
                 }

@@ -1164,26 +1164,6 @@ class Ps2Memcard private constructor(
         return XpsHandler.packXps(saveName, save.dirEntry, filesMap)
     }
 
-    /**
-     * Updates an individual file's contents inside a save folder (e.g. for Hex Hacking).
-     */
-    fun updateSaveFile(saveName: String, fileName: String, newData: ByteArray): Boolean {
-        if (!isFormatted) return false
-        val rootCluster = if (superBlock.rootdirCluster >= allocOffset) {
-            superBlock.rootdirCluster - allocOffset
-        } else {
-            superBlock.rootdirCluster
-        }
-        val rootEntries = readDirents(rootCluster)
-        val saveEntry = rootEntries.firstOrNull { it.name.trim().trimEnd('\u0000') == saveName } ?: return false
-        val subEntries = readDirents(saveEntry.cluster)
-        val template = subEntries.firstOrNull { it.name.trim().trimEnd('\u0000').equals(fileName, ignoreCase = true) }
-        val ok = writeFile(saveEntry.cluster, fileName, newData, template)
-        if (ok) {
-            invalidateSavesCache()
-        }
-        return ok
-    }
 
     /**
      * Calculates card statistics: free clusters, used clusters, free space.
