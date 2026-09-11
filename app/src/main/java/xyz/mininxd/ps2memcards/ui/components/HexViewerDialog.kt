@@ -430,8 +430,13 @@ fun HexViewerDialog(
                                             }
                                         )
                                         .clickable {
-                                            selectedRowIndex = rowIndex
-                                            selectedByteOffset = offset
+                                            if (selectedRowIndex == rowIndex) {
+                                                selectedRowIndex = -1
+                                                selectedByteOffset = -1
+                                            } else {
+                                                selectedRowIndex = rowIndex
+                                                selectedByteOffset = offset
+                                            }
                                         }
                                         .padding(horizontal = 10.dp, vertical = 1.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -453,63 +458,127 @@ fun HexViewerDialog(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        if (selectedByteOffset in data.indices) {
-                            val b = data[selectedByteOffset].toInt() and 0xFF
-                            val int8 = data[selectedByteOffset].toInt()
-                            val uint16 = if (selectedByteOffset + 1 < data.size) {
-                                (b) or ((data[selectedByteOffset + 1].toInt() and 0xFF) shl 8)
-                            } else null
-                            val uint32 = if (selectedByteOffset + 3 < data.size) {
-                                (b.toLong()) or
-                                ((data[selectedByteOffset + 1].toLong() and 0xFF) shl 8) or
-                                ((data[selectedByteOffset + 2].toLong() and 0xFF) shl 16) or
-                                ((data[selectedByteOffset + 3].toLong() and 0xFF) shl 24)
-                            } else null
+                    if (selectedByteOffset in data.indices) {
+                        val b = data[selectedByteOffset].toInt() and 0xFF
+                        val int8 = data[selectedByteOffset].toInt()
+                        val uint16 = if (selectedByteOffset + 1 < data.size) {
+                            (b) or ((data[selectedByteOffset + 1].toInt() and 0xFF) shl 8)
+                        } else null
+                        val uint32 = if (selectedByteOffset + 3 < data.size) {
+                            (b.toLong()) or
+                            ((data[selectedByteOffset + 1].toLong() and 0xFF) shl 8) or
+                            ((data[selectedByteOffset + 2].toLong() and 0xFF) shl 16) or
+                            ((data[selectedByteOffset + 3].toLong() and 0xFF) shl 24)
+                        } else null
 
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            // Row 1: Offset info & row count / dismiss
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = String.format(Locale.US, "Offset: 0x%08X", selectedByteOffset),
+                                        style = monoStyle.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Text(
+                                        text = "(${selectedByteOffset})",
+                                        style = monoStyle.copy(color = MaterialTheme.colorScheme.outline),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "${rowCount} lines",
+                                        style = monoStyle.copy(color = MaterialTheme.colorScheme.outline),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear Selection",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clickable {
+                                                selectedRowIndex = -1
+                                                selectedByteOffset = -1
+                                            }
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Row 2: Value inspector (horizontally scrollable, never wraps characters)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = String.format(Locale.US, "Offset: 0x%08X", selectedByteOffset),
-                                    style = monoStyle.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                )
-                                Text(
                                     text = String.format(Locale.US, "Hex: 0x%02X (%d)", b, b),
-                                    style = monoStyle.copy(color = MaterialTheme.colorScheme.onSurface)
+                                    style = monoStyle.copy(color = MaterialTheme.colorScheme.onSurface),
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                                 if (uint16 != null) {
                                     Text(
                                         text = String.format(Locale.US, "u16: %d", uint16),
-                                        style = monoStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        style = monoStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                                 if (uint32 != null) {
                                     Text(
                                         text = String.format(Locale.US, "u32: %d", uint32),
-                                        style = monoStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        style = monoStyle.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
-                        } else {
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Text(
                                 text = "Tap any row to inspect byte values",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+
+                            Text(
+                                text = "${rowCount} lines",
+                                style = monoStyle.copy(color = MaterialTheme.colorScheme.outline),
+                                maxLines = 1
                             )
                         }
-
-                        Text(
-                            text = "${rowCount} lines",
-                            style = monoStyle.copy(color = MaterialTheme.colorScheme.outline)
-                        )
                     }
                 }
             }

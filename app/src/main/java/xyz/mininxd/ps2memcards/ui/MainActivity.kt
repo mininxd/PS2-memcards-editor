@@ -408,9 +408,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.0"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.2.1"
                                         } catch (e: Exception) {
-                                            "1.2.0"
+                                            "1.2.1"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
