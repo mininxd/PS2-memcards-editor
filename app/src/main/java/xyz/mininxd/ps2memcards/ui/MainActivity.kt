@@ -399,7 +399,9 @@ class MainActivity : ComponentActivity() {
                 var editingTimestampsSave by remember { mutableStateOf<Ps2Save?>(null) }
 
                 BackHandler(enabled = (uiState is CardUiState.Loaded) && selectedSave == null) {
-                    if (hasUnsavedChanges || isInMemoryOnly) {
+                    if (canUndo || canRedo) {
+                        viewModel.cancelEdit()
+                    } else if (hasUnsavedChanges || isInMemoryOnly) {
                         showUnsavedChangesDialog = true
                     } else {
                         viewModel.closeCard()
@@ -508,6 +510,7 @@ class MainActivity : ComponentActivity() {
                             onSaveCardAs = { triggerSaveCardAs() },
                             onFormatCard = { viewModel.setShowFormatDialog(true) },
                             onShowStats = { viewModel.setShowStatsDialog(true) },
+                            onCancelEdit = { viewModel.cancelEdit() },
                             onOpenSettings = { viewModel.setShowSettingsDialog(true) }
                         )
                     },

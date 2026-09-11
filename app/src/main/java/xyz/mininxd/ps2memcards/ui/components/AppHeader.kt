@@ -8,6 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -53,6 +54,7 @@ fun AppHeader(
     onSaveCardAs: () -> Unit,
     onFormatCard: () -> Unit,
     onShowStats: () -> Unit,
+    onCancelEdit: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -192,6 +194,16 @@ fun AppHeader(
                             onSaveCardAs()
                         }
                     )
+                    if (cardName != null && (canUndo || canRedo)) {
+                        DropdownMenuItem(
+                            text = { Text("Cancel Edit") },
+                            leadingIcon = { Icon(Icons.Default.Close, null) },
+                            onClick = {
+                                menuExpanded = false
+                                onCancelEdit?.invoke()
+                            }
+                        )
+                    }
                     Divider()
                     DropdownMenuItem(
                         text = { Text("Card Diagnostics") },

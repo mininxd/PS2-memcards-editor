@@ -101,6 +101,7 @@ class MemcardViewModel : ViewModel() {
     private val undoStack = ArrayDeque<CardSnapshot>()
     private val redoStack = ArrayDeque<CardSnapshot>()
     private var savedCardCrc: Long? = null
+    private var baselineCardData: ByteArray? = null
     private val historyLock = Any()
     private val historyMutex = Mutex()
 
@@ -180,6 +181,7 @@ class MemcardViewModel : ViewModel() {
     fun markCardSaved(savedUri: Uri? = null, savedName: String? = null, context: Context? = null) {
         val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return
         savedCardCrc = calculateCrc(current.memcard.getRawDataDirect())
+        baselineCardData = current.memcard.getRawDataDirect().copyOf()
         clearUndoRedoHistory()
         _hasUnsavedChanges.value = false
         val updated = current.copy(
@@ -237,21 +239,13 @@ class MemcardViewModel : ViewModel() {
                 val snapshotToRestore: CardSnapshot = synchronized(historyLock) {
                     if (undoStack.isEmpty()) return@withLock
                     val snap = undoStack.removeLast()
-                    val isLastUndo = undoStack.isEmpty()
-                    if (isLastUndo) {
-                        // Last undo cancels editing mode and reverts navbar buttons back
-                        redoStack.clear()
-                        _canUndo.value = false
-                        _canRedo.value = false
-                    } else {
-                        val currentBytes = current.memcard.getRawDataDirect().copyOf()
-                        if (redoStack.size >= maxUndoHistory) {
-                            redoStack.removeFirst()
-                        }
-                        redoStack.addLast(CardSnapshot(currentBytes, snap.actionDescription))
-                        _canUndo.value = true
-                        _canRedo.value = true
+                    val currentBytes = current.memcard.getRawDataDirect().copyOf()
+                    if (redoStack.size >= maxUndoHistory) {
+                        redoStack.removeFirst()
                     }
+                    redoStack.addLast(CardSnapshot(currentBytes, snap.actionDescription))
+                    _canUndo.value = undoStack.isNotEmpty()
+                    _canRedo.value = true
                     snap
                 }
 
@@ -308,6 +302,39 @@ class MemcardViewModel : ViewModel() {
                     val selName = _selectedSave.value?.directoryName
                     _selectedSave.value = if (selName != null) saves.firstOrNull { it.directoryName == selName } else null
                     _snackbarMessage.value = "Redo: ${snapshotToRestore.actionDescription}"
+                }
+            }
+        }
+    }
+
+    fun cancelEdit() {
+        viewModelScope.launch {
+            historyMutex.withLock {
+                val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return@withLock
+                val baseline = baselineCardData ?: synchronized(historyLock) {
+                    undoStack.firstOrNull()?.data
+                }
+                clearUndoRedoHistory()
+                if (baseline != null) {
+                    withContext(Dispatchers.Default) {
+                        val card = Ps2Memcard.open(baseline.copyOf()) ?: return@withContext
+                        val saves = card.listSaves()
+                        val stats = card.getStats()
+                        val isAtSavedBaseline = savedCardCrc != null && calculateCrc(baseline) == savedCardCrc
+                        _hasUnsavedChanges.value = if (current.cardUri == null) true else !isAtSavedBaseline
+                        val updated = current.copy(
+                            memcard = card,
+                            saves = saves,
+                            stats = stats
+                        )
+                        setLoadedState(updated)
+                        val selName = _selectedSave.value?.directoryName
+                        _selectedSave.value = if (selName != null) saves.firstOrNull { it.directoryName == selName } else null
+                        _snackbarMessage.value = "Editing cancelled"
+                    }
+                } else {
+                    _hasUnsavedChanges.value = false
+                    _snackbarMessage.value = "Editing cancelled"
                 }
             }
         }
@@ -436,6 +463,7 @@ class MemcardViewModel : ViewModel() {
                         val saves = card.listSaves()
                         val stats = card.getStats()
                         savedCardCrc = calculateCrc(bytes)
+                        baselineCardData = bytes.copyOf()
                         clearUndoRedoHistory()
                         _hasUnsavedChanges.value = false
                         val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard
@@ -481,6 +509,7 @@ class MemcardViewModel : ViewModel() {
                         val saves = card.listSaves()
                         val stats = card.getStats()
                         savedCardCrc = calculateCrc(bytes)
+                        baselineCardData = bytes.copyOf()
                         clearUndoRedoHistory()
                         _hasUnsavedChanges.value = false
                         val loaded = CardUiState.Loaded(
@@ -524,6 +553,7 @@ class MemcardViewModel : ViewModel() {
                         val saves = card.listSaves()
                         val stats = card.getStats()
                         savedCardCrc = calculateCrc(bytes)
+                        baselineCardData = bytes.copyOf()
                         clearUndoRedoHistory()
                         _hasUnsavedChanges.value = false
                         val loaded = CardUiState.Loaded(
@@ -560,6 +590,7 @@ class MemcardViewModel : ViewModel() {
                         val saves = card.listSaves()
                         val stats = card.getStats()
                         savedCardCrc = null
+                        baselineCardData = bytes.copyOf()
                         clearUndoRedoHistory()
                         _hasUnsavedChanges.value = true
                         val loaded = CardUiState.Loaded(
@@ -717,6 +748,7 @@ class MemcardViewModel : ViewModel() {
         currentLoadedCard = null
         _uiState.value = CardUiState.Empty
         savedCardCrc = null
+        baselineCardData = null
         clearUndoRedoHistory()
         _hasUnsavedChanges.value = false
         _selectedSave.value = null
