@@ -1164,6 +1164,74 @@ class Ps2Memcard private constructor(
         return XpsHandler.packXps(saveName, save.dirEntry, filesMap)
     }
 
+    /**
+     * Sets or removes the copy-protection flag (DF_PROTECTED) for a save folder or PS1 file.
+     */
+    fun setSaveProtection(saveName: String, isProtected: Boolean): Boolean {
+        if (!isFormatted) return false
+        val rootCluster = if (superBlock.rootdirCluster >= allocOffset) {
+            superBlock.rootdirCluster - allocOffset
+        } else {
+            superBlock.rootdirCluster
+        }
+        val rootEntries = readDirents(rootCluster).toMutableList()
+        val index = rootEntries.indexOfFirst { it.name.trim().trimEnd('\u0000') == saveName }
+        if (index == -1) return false
+
+        val entry = rootEntries[index]
+        val newMode = if (isProtected) {
+            entry.mode or Ps2DirectoryEntry.DF_PROTECTED
+        } else {
+            entry.mode and Ps2DirectoryEntry.DF_PROTECTED.inv()
+        }
+        rootEntries[index] = entry.copy(mode = newMode)
+        val ok = writeDirents(rootCluster, rootEntries)
+
+        if (entry.isDirectory && entry.cluster in 0 until superBlock.allocatableClusters) {
+            val subEntries = readDirents(entry.cluster).toMutableList()
+            if (subEntries.isNotEmpty() && subEntries[0].name == ".") {
+                subEntries[0] = subEntries[0].copy(mode = newMode)
+                writeDirents(entry.cluster, subEntries)
+            }
+        }
+
+        if (ok) {
+            invalidateSavesCache()
+        }
+        return ok
+    }
+
+    /**
+     * Updates the created and modified timestamps for a save folder.
+     */
+    fun updateSaveTimestamps(saveName: String, created: Ps2Timestamp, modified: Ps2Timestamp): Boolean {
+        if (!isFormatted) return false
+        val rootCluster = if (superBlock.rootdirCluster >= allocOffset) {
+            superBlock.rootdirCluster - allocOffset
+        } else {
+            superBlock.rootdirCluster
+        }
+        val rootEntries = readDirents(rootCluster).toMutableList()
+        val index = rootEntries.indexOfFirst { it.name.trim().trimEnd('\u0000') == saveName }
+        if (index == -1) return false
+
+        val entry = rootEntries[index]
+        rootEntries[index] = entry.copy(created = created, modified = modified)
+        val ok = writeDirents(rootCluster, rootEntries)
+
+        if (entry.isDirectory && entry.cluster in 0 until superBlock.allocatableClusters) {
+            val subEntries = readDirents(entry.cluster).toMutableList()
+            if (subEntries.isNotEmpty() && subEntries[0].name == ".") {
+                subEntries[0] = subEntries[0].copy(created = created, modified = modified)
+                writeDirents(entry.cluster, subEntries)
+            }
+        }
+
+        if (ok) {
+            invalidateSavesCache()
+        }
+        return ok
+    }
 
     /**
      * Calculates card statistics: free clusters, used clusters, free space.

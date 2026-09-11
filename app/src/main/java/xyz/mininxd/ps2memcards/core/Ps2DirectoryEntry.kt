@@ -193,6 +193,15 @@ data class Ps2Timestamp(
                 month = maxOf(1, minOf(12, month)),
                 year = if (year in 1990..2100) year else 2000
             )
+        fun fromValues(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int): Ps2Timestamp {
+            return Ps2Timestamp(
+                second = second.coerceIn(0, 59),
+                minute = minute.coerceIn(0, 59),
+                hour = hour.coerceIn(0, 23),
+                day = day.coerceIn(1, 31),
+                month = month.coerceIn(1, 12),
+                year = year.coerceIn(1990, 2100)
+            )
         }
     }
 }

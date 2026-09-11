@@ -53,6 +53,7 @@ import xyz.mininxd.ps2memcards.core.RecentCard
 import xyz.mininxd.ps2memcards.ui.components.AppHeader
 import xyz.mininxd.ps2memcards.ui.components.CardStatsDialog
 import xyz.mininxd.ps2memcards.ui.components.CreateCardDialog
+import xyz.mininxd.ps2memcards.ui.components.EditTimestampsDialog
 import xyz.mininxd.ps2memcards.ui.components.FormatCardDialog
 import xyz.mininxd.ps2memcards.ui.components.HexViewerDialog
 import xyz.mininxd.ps2memcards.ui.components.SaveDetailModal
@@ -385,6 +386,7 @@ class MainActivity : ComponentActivity() {
                 val currentCardName = (uiState as? CardUiState.Loaded)?.cardName
                 val isInMemoryOnly = (uiState as? CardUiState.Loaded)?.cardUri == null
                 var showUnsavedChangesDialog by remember { mutableStateOf(false) }
+                var editingTimestampsSave by remember { mutableStateOf<Ps2Save?>(null) }
 
                 BackHandler(enabled = (uiState is CardUiState.Loaded) && selectedSave == null) {
                     if (hasUnsavedChanges || isInMemoryOnly) {
@@ -582,9 +584,28 @@ class MainActivity : ComponentActivity() {
                             viewModel.selectSave(null)
                             viewModel.deleteSave(save.directoryName)
                         },
+                        onToggleProtection = { isProtected ->
+                            viewModel.setSaveProtection(save.directoryName, isProtected)
+                        },
+                        onEditTimestamps = {
+                            editingTimestampsSave = save
+                        },
                         onInspectFileHex = { file ->
                             val data = file.data ?: (uiState as? CardUiState.Loaded)?.memcard?.getSaveFileBytes(save.directoryName, file.name) ?: ByteArray(0)
                             viewModel.openHexViewer(file.name, data)
+                        }
+                    )
+                }
+
+                editingTimestampsSave?.let { saveToEdit ->
+                    EditTimestampsDialog(
+                        saveTitle = saveToEdit.displayTitle,
+                        initialCreated = saveToEdit.dirEntry.created,
+                        initialModified = saveToEdit.dirEntry.modified,
+                        onDismiss = { editingTimestampsSave = null },
+                        onSave = { newCreated, newModified ->
+                            editingTimestampsSave = null
+                            viewModel.updateSaveTimestamps(saveToEdit.directoryName, newCreated, newModified)
                         }
                     )
                 }

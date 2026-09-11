@@ -10,6 +10,7 @@
 *.apk
 *.aab
 *.ps2
+*.txt
 Screenshot*
 savefile_test*
 saves_test*
