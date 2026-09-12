@@ -55,7 +55,6 @@ import xyz.mininxd.ps2memcards.core.UpdateStatus
 @Composable
 fun EmptyStateScreen(
     onOpenCard: () -> Unit,
-    onOpenFolderCard: (() -> Unit)? = null,
     onCreateCard: () -> Unit,
     recentCards: List<RecentCard> = emptyList(),
     onOpenRecentCard: (RecentCard) -> Unit = {},
@@ -188,20 +187,6 @@ fun EmptyStateScreen(
                     Text("Open Card", maxLines = 1, style = MaterialTheme.typography.labelMedium)
                 }
 
-                if (onOpenFolderCard != null) {
-                    FilledTonalButton(
-                        onClick = onOpenFolderCard,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Open Folder", maxLines = 1, style = MaterialTheme.typography.labelMedium)
-                    }
-                }
-
                 FilledTonalButton(
                     onClick = onCreateCard,
                     modifier = Modifier
@@ -252,19 +237,6 @@ fun EmptyStateScreen(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 onClick = onOpenCard
             )
-
-            if (onOpenFolderCard != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-
-                ActionCard(
-                    title = "Open Folder Card",
-                    subtitle = "Select a PCSX2 folder-type memory card directory",
-                    icon = Icons.Default.FolderOpen,
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    onClick = onOpenFolderCard
-                )
-            }
 
             Spacer(modifier = Modifier.height(10.dp))
 

@@ -126,25 +126,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val openFolderCardLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
-        isWaitingForActivityResult = false
-        uri?.let {
-            try {
-                contentResolver.takePersistableUriPermission(
-                    it,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (_: Exception) {}
-
-            val resolved = StoragePermissionHelper.resolveFileFromUri(this, it)
-            if (resolved != null && resolved.isDirectory) {
-                viewModel.loadFolderCard(resolved, this)
-            } else {
-                loadCardFromUri(it)
-            }
-        }
-    }
-
     private val selectSaveDirectoryLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         isWaitingForActivityResult = false
         if (uri == null) {
@@ -439,11 +420,6 @@ class MainActivity : ComponentActivity() {
         openCardLauncher.launch(arrayOf("*/*"))
     }
 
-    private fun launchOpenFolderCard() {
-        isWaitingForActivityResult = true
-        openFolderCardLauncher.launch(null)
-    }
-
     private fun launchSelectSaveDirectory() {
         isWaitingForActivityResult = true
         selectSaveDirectoryLauncher.launch(null)
@@ -629,7 +605,6 @@ class MainActivity : ComponentActivity() {
                             onFormatCard = { viewModel.setShowFormatDialog(true) },
                             onShowStats = { viewModel.setShowStatsDialog(true) },
                             onCancelEdit = { viewModel.cancelEdit() },
-                            onOpenFolderCard = { launchOpenFolderCard() },
                             onOpenSettings = { viewModel.setShowSettingsDialog(true) }
                         )
                     },
@@ -658,7 +633,6 @@ class MainActivity : ComponentActivity() {
                             is CardUiState.Empty -> {
                                 EmptyStateScreen(
                                     onOpenCard = { launchOpenCard() },
-                                    onOpenFolderCard = { launchOpenFolderCard() },
                                     onCreateCard = { viewModel.setShowCreateDialog(true) },
                                     recentCards = recentCards,
                                     onOpenRecentCard = { recent ->
