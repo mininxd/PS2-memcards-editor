@@ -41,15 +41,13 @@ object FolderMemcardHandler {
      */
     fun isSuperblockFile(file: File): Boolean {
         if (!file.exists() || !file.isFile) return false
-        if (file.name == SUPERBLOCK_FILENAME || file.name.endsWith(SUPERBLOCK_FILENAME)) {
-            val bytes = try { file.readBytes() } catch (_: Throwable) { return false }
-            return isSuperblockBytes(bytes)
+        val nameLower = file.name.lowercase()
+        val sbLower = SUPERBLOCK_FILENAME.lowercase()
+        if (nameLower != sbLower && !nameLower.endsWith(sbLower)) {
+            return false
         }
-        if (file.length() in 340L..65536L) {
-            val bytes = try { file.readBytes() } catch (_: Throwable) { return false }
-            return isSuperblockBytes(bytes)
-        }
-        return false
+        val bytes = try { file.readBytes() } catch (_: Throwable) { return false }
+        return isSuperblockBytes(bytes)
     }
 
     /**

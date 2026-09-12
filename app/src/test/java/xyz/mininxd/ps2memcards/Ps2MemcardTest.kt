@@ -16,6 +16,7 @@ import java.io.File
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -700,12 +701,58 @@ class Ps2MemcardTest {
         val emptyResult = Ps2FileDetector.detect(ByteArray(0), "empty.dat")
         assertEquals(Ps2FileType.INVALID, emptyResult)
 
-        // Superblock byte array passed without filename should still be recognized as superblock
+        // Superblock must strictly be named _pcsx2_superblock to be recognized as folder card
         val sbFile = File("saves_test/MemoryCard/_pcsx2_superblock")
         if (sbFile.exists()) {
             val sbBytes = sbFile.readBytes()
-            val detected = Ps2FileDetector.detect(sbBytes, "unknown_file")
-            assertEquals(Ps2FileType.PS2_FOLDER_MEMCARD, detected)
+            val detectedWithoutName = Ps2FileDetector.detect(sbBytes, "unknown_file")
+            assertNotEquals(Ps2FileType.PS2_FOLDER_MEMCARD, detectedWithoutName)
+
+            val detectedWithName = Ps2FileDetector.detect(sbBytes, "_pcsx2_superblock")
+            assertEquals(Ps2FileType.PS2_FOLDER_MEMCARD, detectedWithName)
+        }
+    }
+
+    @Test
+    fun testSavesTestFilesDetection() {
+        val blackMax = File("saves_test/black.max")
+        if (blackMax.exists()) {
+            val res = Ps2FileDetector.detect(blackMax)
+            assertEquals(Ps2FileType.SAVEGAME_MAX, res.fileType)
+            assertTrue(res.isSavegame)
+            assertFalse(res.isMemcard)
+        }
+
+        val mksmMax = File("saves_test/mksm.max")
+        if (mksmMax.exists()) {
+            val res = Ps2FileDetector.detect(mksmMax)
+            assertEquals(Ps2FileType.SAVEGAME_MAX, res.fileType)
+            assertTrue(res.isSavegame)
+            assertFalse(res.isMemcard)
+        }
+
+        val appCard = File("saves_test/app_mcd001.ps2")
+        if (appCard.exists()) {
+            val res = Ps2FileDetector.detect(appCard)
+            assertEquals(Ps2FileType.PS2_MEMCARD_IMAGE, res.fileType)
+            assertTrue(res.isMemcard)
+            assertFalse(res.isSavegame)
+        }
+
+        val armsxCard = File("saves_test/armsx_mcd001.ps2")
+        if (armsxCard.exists()) {
+            val res = Ps2FileDetector.detect(armsxCard)
+            assertEquals(Ps2FileType.PS2_MEMCARD_IMAGE, res.fileType)
+            assertTrue(res.isMemcard)
+            assertFalse(res.isSavegame)
+        }
+
+        val sbFile = File("saves_test/MemoryCard/_pcsx2_superblock")
+        if (sbFile.exists()) {
+            val res = Ps2FileDetector.detect(sbFile)
+            assertEquals(Ps2FileType.PS2_FOLDER_MEMCARD, res.fileType)
+            assertTrue(res.isMemcard)
+            assertFalse(res.isSavegame)
         }
     }
 

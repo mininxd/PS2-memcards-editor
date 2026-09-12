@@ -211,25 +211,16 @@ object Ps2FileDetector {
      * Checks if byte array and optional filename match a PCSX2 folder memory card superblock.
      */
     fun isSuperblockData(data: ByteArray, nameLower: String = ""): Boolean {
-        if (nameLower.contains(FolderMemcardHandler.SUPERBLOCK_FILENAME) ||
-            nameLower == FolderMemcardHandler.SUPERBLOCK_FILENAME
-        ) {
-            if (data.size >= 28) {
-                val magic = String(data.copyOfRange(0, 28), Charsets.US_ASCII)
-                if (magic.startsWith("Sony PS2 Memory Card Format")) return true
-            }
-            if (data.size in 340..65536) {
-                if (Ps2SuperBlock.parse(data, 0) != null) return true
-            }
-            return true
+        val sbName = FolderMemcardHandler.SUPERBLOCK_FILENAME.lowercase()
+        if (!nameLower.contains(sbName) && nameLower != sbName) {
+            return false
         }
-
-        // Check if size is typical for standalone superblock (< 1MB, e.g. 8192 bytes or 340 bytes)
-        if (data.size in 340 until 1024 * 1024) {
+        if (data.size < 28) return false
+        val magic = String(data.copyOfRange(0, minOf(28, data.size)), Charsets.US_ASCII)
+        if (magic.startsWith("Sony PS2 Memory Card Format")) return true
+        if (data.size in 340..65536) {
             val sb = Ps2SuperBlock.parse(data, 0)
-            if (sb != null && sb.isFormatted()) {
-                return true
-            }
+            if (sb != null && sb.isFormatted()) return true
         }
         return false
     }

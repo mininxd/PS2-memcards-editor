@@ -623,6 +623,12 @@ class MemcardViewModel : ViewModel() {
                     val detection = Ps2FileDetector.detect(contentResolver, uri, fileName, context)
                     when (detection.fileType) {
                         Ps2FileType.PS2_FOLDER_MEMCARD -> {
+                            val isSuperblockName = fileName.equals(FolderMemcardHandler.SUPERBLOCK_FILENAME, ignoreCase = true) ||
+                                    fileName.endsWith(FolderMemcardHandler.SUPERBLOCK_FILENAME, ignoreCase = true)
+                            if (!isSuperblockName) {
+                                _uiState.value = CardUiState.Error("Folder memory cards must be opened by selecting the '_pcsx2_superblock' file.")
+                                return@withContext
+                            }
                             val folder = detection.folderDir ?: detection.resolvedFile?.parentFile
                             if (folder != null && folder.isDirectory) {
                                 val card = FolderMemcardHandler.loadFolderMemcard(folder)
@@ -661,32 +667,6 @@ class MemcardViewModel : ViewModel() {
                                     _uiState.value = CardUiState.Error("Failed to load PCSX2 folder memory card from ${folder.name}.")
                                 }
                             } else {
-                                val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                if (bytes != null && bytes.size >= Ps2SuperBlock.SUPERBLOCK_SIZE) {
-                                    val sb = Ps2SuperBlock.parse(bytes, 0)
-                                    if (sb != null) {
-                                        val totalBytes = sb.clustersPerCard * sb.pageLen * sb.pagesPerCluster
-                                        val sizeInMB = maxOf(8, (totalBytes / (1024 * 1024)).toInt())
-                                        val useEcc = (sb.cardFlags and 0x01) != 0
-                                        val formatted = MemcardFormatter.format(sizeInMB, useEcc)
-                                        val card = Ps2Memcard.open(formatted)
-                                        if (card != null) {
-                                            card.superBlock = sb
-                                            val loaded = CardUiState.Loaded(
-                                                cardName = fileName,
-                                                cardUri = uri,
-                                                memcard = card,
-                                                saves = emptyList(),
-                                                stats = card.getStats(),
-                                                isFolderCard = true,
-                                                folderPath = null
-                                            )
-                                            setLoadedState(loaded)
-                                            _snackbarMessage.value = "Loaded superblock from $fileName (Folder access required to load saves)"
-                                            return@withContext
-                                        }
-                                    }
-                                }
                                 _uiState.value = CardUiState.Error("Could not access memory card folder for $fileName.")
                             }
                         }
@@ -735,75 +715,13 @@ class MemcardViewModel : ViewModel() {
                         Ps2FileType.SAVEGAME_MAX,
                         Ps2FileType.SAVEGAME_CBS,
                         Ps2FileType.SAVEGAME_XPS -> {
-                            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                            if (bytes == null) {
-                                _uiState.value = CardUiState.Error("Could not read save file.")
-                                return@withContext
-                            }
-                            val currentLoaded = currentLoadedCard
-                            if (currentLoaded != null && currentLoaded.stats.isFormatted) {
-                                importSave(bytes)
-                            } else {
-                                val formattedBytes = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
-                                val card = Ps2Memcard.open(formattedBytes)
-                                if (card != null && card.importSave(bytes)) {
-                                    val saves = card.listSaves()
-                                    val loaded = CardUiState.Loaded(
-                                        cardName = "MemoryCard.ps2",
-                                        cardUri = null,
-                                        memcard = card,
-                                        saves = saves,
-                                        stats = card.getStats(),
-                                        isFolderCard = false,
-                                        folderPath = null
-                                    )
-                                    savedCardCrc = null
-                                    baselineCardData = card.getRawDataDirect().copyOf()
-                                    clearUndoRedoHistory()
-                                    _hasUnsavedChanges.value = true
-                                    setLoadedState(loaded)
-                                    _snackbarMessage.value = "Imported $fileName into new memory card."
-                                } else {
-                                    _uiState.value = CardUiState.Error("Failed to import savegame $fileName.")
-                                }
-                            }
+                            _uiState.value = CardUiState.Error("'$fileName' is a savegame file, not a memory card. Please open or create a memory card first, then import this save.")
                         }
                         Ps2FileType.SAVEGAME_FOLDER -> {
-                            val folder = detection.folderDir ?: detection.resolvedFile
-                            if (folder != null && folder.isDirectory) {
-                                val currentLoaded = currentLoadedCard
-                                if (currentLoaded != null && currentLoaded.stats.isFormatted) {
-                                    importSaveFolder(folder)
-                                } else {
-                                    val formattedBytes = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
-                                    val card = Ps2Memcard.open(formattedBytes)
-                                    if (card != null && FolderMemcardHandler.importSaveFolder(card, folder)) {
-                                        val saves = card.listSaves()
-                                        val loaded = CardUiState.Loaded(
-                                            cardName = "MemoryCard.ps2",
-                                            cardUri = null,
-                                            memcard = card,
-                                            saves = saves,
-                                            stats = card.getStats(),
-                                            isFolderCard = false,
-                                            folderPath = null
-                                        )
-                                        savedCardCrc = null
-                                        baselineCardData = card.getRawDataDirect().copyOf()
-                                        clearUndoRedoHistory()
-                                        _hasUnsavedChanges.value = true
-                                        setLoadedState(loaded)
-                                        _snackbarMessage.value = "Imported save folder ${folder.name} into new memory card."
-                                    } else {
-                                        _uiState.value = CardUiState.Error("Failed to import save folder ${folder.name}.")
-                                    }
-                                }
-                            } else {
-                                _uiState.value = CardUiState.Error("Invalid save folder.")
-                            }
+                            _uiState.value = CardUiState.Error("'$fileName' is a savegame folder, not a memory card. Please open or create a memory card first, then import this save.")
                         }
                         Ps2FileType.INVALID -> {
-                            _uiState.value = CardUiState.Error("Selected file '$fileName' is not a valid PS2 memory card or savegame.")
+                            _uiState.value = CardUiState.Error("Selected file '$fileName' is not a valid PS2 memory card.")
                         }
                     }
                 } catch (t: Throwable) {
