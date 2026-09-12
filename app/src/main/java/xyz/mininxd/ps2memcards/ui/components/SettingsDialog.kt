@@ -41,7 +41,7 @@ fun SettingsDialog(
     hasRecentCards: Boolean,
     onClearRecentCards: () -> Unit,
     onDismiss: () -> Unit,
-    versionName: String = "1.5.0"
+    versionName: String = "1.5.1"
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
