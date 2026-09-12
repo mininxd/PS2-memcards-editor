@@ -2,7 +2,6 @@ package xyz.mininxd.ps2memcards.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,15 +21,12 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EditCalendar
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -39,6 +35,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -105,22 +102,6 @@ fun EditTimestampsDialog(
 
     val activeTimestamp = remember(activeYear, activeMonth, activeDay, activeHour, activeMinute, activeSecond) {
         Ps2Timestamp.fromValues(activeYear, activeMonth, activeDay, activeHour, activeMinute, activeSecond)
-    }
-
-    fun addDays(days: Int) {
-        val cal = Calendar.getInstance().apply {
-            clear()
-            set(activeYear, activeMonth - 1, activeDay)
-            add(Calendar.DAY_OF_MONTH, days)
-        }
-        val newY = cal.get(Calendar.YEAR).coerceIn(1990, 2040)
-        val newM = cal.get(Calendar.MONTH) + 1
-        val newD = cal.get(Calendar.DAY_OF_MONTH)
-        if (selectedTab == 0) {
-            modYear = newY; modMonth = newM; modDay = newD
-        } else {
-            creYear = newY; creMonth = newM; creDay = newD
-        }
     }
 
     // Material 3 Date Picker Dialog
@@ -419,30 +400,12 @@ fun EditTimestampsDialog(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = if (selectedTab == 0) "MODIFIED PREVIEW" else "CREATED PREVIEW",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                            ) {
-                                Text(
-                                    text = "PS2 (UTC+9)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                        Text(
+                            text = if (selectedTab == 0) "MODIFIED PREVIEW" else "CREATED PREVIEW",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
 
                         Spacer(modifier = Modifier.height(4.dp))
 
@@ -581,97 +544,73 @@ fun EditTimestampsDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Quick Actions Header
-                Text(
-                    text = "Quick Presets",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
-                )
-
-                // Quick Presets Row
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    AssistChip(
+                    OutlinedButton(
                         onClick = {
                             val now = Ps2Timestamp.now()
                             if (selectedTab == 0) {
-                                modYear = now.year; modMonth = now.month; modDay = now.day
-                                modHour = now.hour; modMinute = now.minute; modSecond = now.second
+                                modYear = now.year
+                                modMonth = now.month
+                                modDay = now.day
+                                modHour = now.hour
+                                modMinute = now.minute
+                                modSecond = now.second
                             } else {
-                                creYear = now.year; creMonth = now.month; creDay = now.day
-                                creHour = now.hour; creMinute = now.minute; creSecond = now.second
+                                creYear = now.year
+                                creMonth = now.month
+                                creDay = now.day
+                                creHour = now.hour
+                                creMinute = now.minute
+                                creSecond = now.second
                             }
                         },
-                        leadingIcon = { Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp)) },
-                        label = { Text("Current Time", style = MaterialTheme.typography.labelSmall) },
-                        modifier = Modifier.height(32.dp)
-                    )
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.Schedule, null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Current Time", style = MaterialTheme.typography.labelSmall)
+                    }
 
-                    AssistChip(
+                    OutlinedButton(
                         onClick = {
                             if (selectedTab == 0) {
-                                modYear = creYear; modMonth = creMonth; modDay = creDay
-                                modHour = creHour; modMinute = creMinute; modSecond = creSecond
+                                modYear = creYear
+                                modMonth = creMonth
+                                modDay = creDay
+                                modHour = creHour
+                                modMinute = creMinute
+                                modSecond = creSecond
                             } else {
-                                creYear = modYear; creMonth = modMonth; creDay = modDay
-                                creHour = modHour; creMinute = modMinute; creSecond = modSecond
+                                creYear = modYear
+                                creMonth = modMonth
+                                creDay = modDay
+                                creHour = modHour
+                                creMinute = modMinute
+                                creSecond = modSecond
                             }
                         },
-                        leadingIcon = { Icon(Icons.Default.Sync, null, modifier = Modifier.size(16.dp)) },
-                        label = { Text(if (selectedTab == 0) "Copy Created" else "Copy Modified", style = MaterialTheme.typography.labelSmall) },
-                        modifier = Modifier.height(32.dp)
-                    )
-
-                    AssistChip(
-                        onClick = {
-                            val now = Ps2Timestamp.now()
-                            modYear = now.year; modMonth = now.month; modDay = now.day
-                            modHour = now.hour; modMinute = now.minute; modSecond = now.second
-                            creYear = now.year; creMonth = now.month; creDay = now.day
-                            creHour = now.hour; creMinute = now.minute; creSecond = now.second
-                        },
-                        leadingIcon = { Icon(Icons.Default.History, null, modifier = Modifier.size(16.dp)) },
-                        label = { Text("Set Both to Now", style = MaterialTheme.typography.labelSmall) },
-                        modifier = Modifier.height(32.dp)
-                    )
-
-                    AssistChip(
-                        onClick = { addDays(-1) },
-                        leadingIcon = { Icon(Icons.Default.Remove, null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("-1 Day", style = MaterialTheme.typography.labelSmall) },
-                        modifier = Modifier.height(32.dp)
-                    )
-
-                    AssistChip(
-                        onClick = { addDays(1) },
-                        leadingIcon = { Icon(Icons.Default.Add, null, modifier = Modifier.size(14.dp)) },
-                        label = { Text("+1 Day", style = MaterialTheme.typography.labelSmall) },
-                        modifier = Modifier.height(32.dp)
-                    )
-
-                    AssistChip(
-                        onClick = {
-                            if (selectedTab == 0) {
-                                modYear = 2000; modMonth = 3; modDay = 4
-                                modHour = 12; modMinute = 0; modSecond = 0
-                            } else {
-                                creYear = 2000; creMonth = 3; creDay = 4
-                                creHour = 12; creMinute = 0; creSecond = 0
-                            }
-                        },
-                        leadingIcon = { Icon(Icons.Default.SportsEsports, null, modifier = Modifier.size(16.dp)) },
-                        label = { Text("PS2 Launch (2000)", style = MaterialTheme.typography.labelSmall) },
-                        modifier = Modifier.height(32.dp)
-                    )
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(36.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.Sync, null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (selectedTab == 0) "Copy Created" else "Copy Modified",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             }
         },
