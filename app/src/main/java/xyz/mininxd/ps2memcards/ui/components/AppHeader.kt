@@ -9,7 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -109,7 +109,7 @@ fun AppHeader(
             } else {
                 IconButton(onClick = onOpenCard) {
                     Icon(
-                        imageVector = Icons.Default.FolderOpen,
+                        imageVector = Icons.Default.FileOpen,
                         contentDescription = "Open Card",
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -163,7 +163,7 @@ fun AppHeader(
                 ) {
                     DropdownMenuItem(
                         text = { Text("Open Card") },
-                        leadingIcon = { Icon(Icons.Default.FolderOpen, null) },
+                        leadingIcon = { Icon(Icons.Default.FileOpen, null) },
                         onClick = {
                             menuExpanded = false
                             onOpenCard()

@@ -8,6 +8,12 @@ enum class ExportFilenameFormat(
     val description: String,
     val previewExample: String
 ) {
+    GAME_NAME_AND_PRODUCT_ID(
+        key = "game_name_product_id",
+        title = "Game Name + Product ID",
+        description = "Combine game title and product serial ID",
+        previewExample = "Final Fantasy X - BASLUS-20312.psu"
+    ),
     GAME_NAME(
         key = "game_name",
         title = "Game Name",
@@ -19,12 +25,6 @@ enum class ExportFilenameFormat(
         title = "Product ID",
         description = "Save using the game product serial ID",
         previewExample = "BASLUS-20312.psu"
-    ),
-    GAME_NAME_AND_PRODUCT_ID(
-        key = "game_name_product_id",
-        title = "Game Name + Product ID",
-        description = "Combine game title and product serial ID",
-        previewExample = "Final Fantasy X - BASLUS-20312.psu"
     );
 
     companion object {

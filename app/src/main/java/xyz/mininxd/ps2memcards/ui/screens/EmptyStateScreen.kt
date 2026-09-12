@@ -22,7 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SdCard
@@ -39,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -66,6 +67,12 @@ fun EmptyStateScreen(
     modifier: Modifier = Modifier
 ) {
     val hasRecents = recentCards.isNotEmpty()
+
+    LaunchedEffect(Unit) {
+        if (updateStatus is UpdateStatus.Idle) {
+            onCheckUpdate()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -182,7 +189,7 @@ fun EmptyStateScreen(
                         .height(42.dp),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Open Card", maxLines = 1, style = MaterialTheme.typography.labelMedium)
                 }
@@ -232,7 +239,7 @@ fun EmptyStateScreen(
             ActionCard(
                 title = "Open Memory Card",
                 subtitle = "Load a .ps2 image or PCSX2 folder card (_pcsx2_superblock)",
-                icon = Icons.Default.FolderOpen,
+                icon = Icons.Default.FileOpen,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 onClick = onOpenCard

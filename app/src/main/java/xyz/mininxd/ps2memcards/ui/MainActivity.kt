@@ -456,6 +456,13 @@ class MainActivity : ComponentActivity() {
             loadCardFromUri(uri)
         }
 
+        val appVersion = try {
+            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.5.0"
+        } catch (_: Exception) {
+            "1.5.0"
+        }
+        viewModel.checkUpdate(appVersion)
+
         setContent {
             PS2MemcardTheme {
                 val uiState by viewModel.uiState.collectAsState()
@@ -648,9 +655,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.2"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.5.0"
                                         } catch (e: Exception) {
-                                            "1.4.2"
+                                            "1.5.0"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
@@ -852,9 +859,9 @@ class MainActivity : ComponentActivity() {
                         onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
                         onDismiss = { viewModel.setShowSettingsDialog(false) },
                         versionName = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.2"
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.5.0"
                         } catch (_: Exception) {
-                            "1.4.2"
+                            "1.5.0"
                         }
                     )
                 }
