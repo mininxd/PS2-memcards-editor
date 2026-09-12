@@ -298,11 +298,11 @@ fun HexViewerDialog(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Toolbar Header
+                // Row 1: Header (Title, file info & Close button)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                        .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
@@ -362,169 +362,193 @@ fun HexViewerDialog(
                         }
                     }
 
-                    // Undo Button
-                    if (!isReadOnly) {
-                        IconButton(
-                            onClick = { performUndo() },
-                            enabled = undoStack.isNotEmpty(),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Undo,
-                                contentDescription = "Undo",
-                                tint = if (undoStack.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        // Redo Button
-                        IconButton(
-                            onClick = { performRedo() },
-                            enabled = redoStack.isNotEmpty(),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Redo,
-                                contentDescription = "Redo",
-                                tint = if (redoStack.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    // Search Button
-                    IconButton(
-                        onClick = {
-                            showSearchBar = !showSearchBar
-                            if (showSearchBar) showJumpBar = false
-                        },
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Find",
-                            tint = if (showSearchBar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    // Jump Button
-                    IconButton(
-                        onClick = {
-                            showJumpBar = !showJumpBar
-                            if (showJumpBar) showSearchBar = false
-                        },
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowDownward,
-                            contentDescription = "Jump",
-                            tint = if (showJumpBar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    // Save Button
-                    if (onSave != null && !isReadOnly) {
-                        if (hasModifications) {
-                            FilledTonalButton(
-                                onClick = { onSave(currentBytes.copyOf()) },
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                modifier = Modifier.height(32.dp)
-                            ) {
-                                Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Save", style = MaterialTheme.typography.labelSmall)
-                            }
-                        } else {
-                            IconButton(
-                                onClick = { onSave(currentBytes.copyOf()) },
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Save,
-                                    contentDescription = "Save",
-                                    tint = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Overflow Menu
-                    Box {
-                        IconButton(
-                            onClick = { menuExpanded = true },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Options",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Copy Hex Dump") },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    val dump = buildHexDumpText(currentBytes, maxRows = 2048)
-                                    clipboardManager.setText(AnnotatedString(dump))
-                                    Toast.makeText(context, "Hex dump copied to clipboard", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Copy Raw Hex String") },
-                                leadingIcon = { Icon(Icons.Default.Code, null, modifier = Modifier.size(18.dp)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    val hexStr = buildRawHexString(currentBytes, maxBytes = 32768)
-                                    clipboardManager.setText(AnnotatedString(hexStr))
-                                    Toast.makeText(context, "Raw hex string copied", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Copy Printable ASCII") },
-                                leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp)) },
-                                onClick = {
-                                    menuExpanded = false
-                                    val asciiStr = buildPrintableAscii(currentBytes, maxBytes = 65536)
-                                    clipboardManager.setText(AnnotatedString(asciiStr))
-                                    Toast.makeText(context, "ASCII text copied", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                            if (hasModifications && !isReadOnly) {
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Revert All Edits", color = MaterialTheme.colorScheme.error) },
-                                    leadingIcon = { Icon(Icons.Default.Refresh, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
-                                    onClick = {
-                                        menuExpanded = false
-                                        performRevert()
-                                    }
-                                )
-                            }
-                        }
-                    }
-
                     // Close Button
                     IconButton(
                         onClick = { handleRequestClose() },
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
                         )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+
+                // Row 2: Tool Action Buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left side: Editing / Navigation tools
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        // Undo Button
+                        if (!isReadOnly) {
+                            IconButton(
+                                onClick = { performUndo() },
+                                enabled = undoStack.isNotEmpty(),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Undo,
+                                    contentDescription = "Undo",
+                                    tint = if (undoStack.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            // Redo Button
+                            IconButton(
+                                onClick = { performRedo() },
+                                enabled = redoStack.isNotEmpty(),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Redo,
+                                    contentDescription = "Redo",
+                                    tint = if (redoStack.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        // Search Button
+                        IconButton(
+                            onClick = {
+                                showSearchBar = !showSearchBar
+                                if (showSearchBar) showJumpBar = false
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Find",
+                                tint = if (showSearchBar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Jump Button
+                        IconButton(
+                            onClick = {
+                                showJumpBar = !showJumpBar
+                                if (showJumpBar) showSearchBar = false
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDownward,
+                                contentDescription = "Jump",
+                                tint = if (showJumpBar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Right side: Save & Overflow Menu
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Save Button
+                        if (onSave != null && !isReadOnly) {
+                            if (hasModifications) {
+                                FilledTonalButton(
+                                    onClick = { onSave(currentBytes.copyOf()) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Save", style = MaterialTheme.typography.labelSmall)
+                                }
+                            } else {
+                                IconButton(
+                                    onClick = { onSave(currentBytes.copyOf()) },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Save,
+                                        contentDescription = "Save",
+                                        tint = MaterialTheme.colorScheme.outline,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Overflow Menu
+                        Box {
+                            IconButton(
+                                onClick = { menuExpanded = true },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Copy Hex Dump") },
+                                    leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        val dump = buildHexDumpText(currentBytes, maxRows = 2048)
+                                        clipboardManager.setText(AnnotatedString(dump))
+                                        Toast.makeText(context, "Hex dump copied to clipboard", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Copy Raw Hex String") },
+                                    leadingIcon = { Icon(Icons.Default.Code, null, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        val hexStr = buildRawHexString(currentBytes, maxBytes = 32768)
+                                        clipboardManager.setText(AnnotatedString(hexStr))
+                                        Toast.makeText(context, "Raw hex string copied", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Copy Printable ASCII") },
+                                    leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        val asciiStr = buildPrintableAscii(currentBytes, maxBytes = 65536)
+                                        clipboardManager.setText(AnnotatedString(asciiStr))
+                                        Toast.makeText(context, "ASCII text copied", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                                if (hasModifications && !isReadOnly) {
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Revert All Edits", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = { Icon(Icons.Default.Refresh, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp)) },
+                                        onClick = {
+                                            menuExpanded = false
+                                            performRevert()
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
