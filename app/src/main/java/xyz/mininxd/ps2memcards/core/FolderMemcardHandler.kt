@@ -89,7 +89,7 @@ object FolderMemcardHandler {
         val fileCreated = mutableMapOf<String, Ps2Timestamp>()
         val fileModified = mutableMapOf<String, Ps2Timestamp>()
 
-        val entryRegex = Regex("""([\$a-zA-Z0-9_.\-]+)\s*:\s*\{([^}]+)\}""")
+        val entryRegex = Regex("""([${'$'}a-zA-Z0-9_.\-]+)\s*:\s*\{([^}]+)\}""")
         for (match in entryRegex.findAll(content)) {
             val key = match.groupValues[1].trim()
             val body = match.groupValues[2]
@@ -102,7 +102,7 @@ object FolderMemcardHandler {
             val tm = tmMatch?.groupValues?.get(1)?.toLongOrNull()?.let { Ps2Timestamp.fromEpochSeconds(it) }
             val ord = orderMatch?.groupValues?.get(1)?.toIntOrNull()
 
-            if (key == "\$ROOT") {
+            if (key == "\$ROOT" || key == "ROOT") {
                 rootCreated = tc
                 rootModified = tm
             } else {
