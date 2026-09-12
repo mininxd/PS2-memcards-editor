@@ -803,7 +803,7 @@ class MemcardViewModel : ViewModel() {
                             }
                         }
                         Ps2FileType.INVALID -> {
-                            _uiState.value = CardUiState.Error("Rejected: Selected file '$fileName' is not a valid PS2 memory card or savegame.")
+                            _uiState.value = CardUiState.Error("Selected file '$fileName' is not a valid PS2 memory card or savegame.")
                         }
                     }
                 } catch (t: Throwable) {
@@ -983,13 +983,13 @@ class MemcardViewModel : ViewModel() {
         val type = Ps2FileDetector.detect(bytes, fileName)
         when (type) {
             Ps2FileType.PS2_FOLDER_MEMCARD -> {
-                _snackbarMessage.value = "Rejected: '$fileName' is a memory card superblock, not a savegame. Use 'Open Card' to open it."
+                _snackbarMessage.value = "'$fileName' is a memory card superblock, not a savegame. Use 'Open Card' to open it."
             }
             Ps2FileType.PS2_MEMCARD_IMAGE -> {
-                _snackbarMessage.value = "Rejected: '$fileName' is a PS2 memory card image, not a savegame. Use 'Open Card' to open it."
+                _snackbarMessage.value = "'$fileName' is a PS2 memory card image, not a savegame. Use 'Open Card' to open it."
             }
             Ps2FileType.INVALID -> {
-                _snackbarMessage.value = "Rejected: '$fileName' is not a valid PS2 savegame (.psu, .max, .cbs, .xps)."
+                _snackbarMessage.value = "'$fileName' is not a valid PS2 savegame (.psu, .max, .cbs, .xps)."
             }
             Ps2FileType.SAVEGAME_PSU,
             Ps2FileType.SAVEGAME_MAX,
