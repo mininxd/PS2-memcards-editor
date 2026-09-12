@@ -792,7 +792,7 @@ fun HexViewerDialog(
                                                         pushStyle(SpanStyle(background = searchBgColor, color = searchTextColor, fontWeight = FontWeight.Bold))
                                                     }
                                                     isModified -> {
-                                                        pushStyle(SpanStyle(background = modifiedBgColor, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold))
+                                                        pushStyle(SpanStyle(background = modifiedBgColor, color = normalHexColor, fontWeight = FontWeight.Bold))
                                                     }
                                                     b == 0 -> {
                                                         pushStyle(SpanStyle(color = zeroHexColor, fontWeight = FontWeight.Normal))
@@ -837,7 +837,7 @@ fun HexViewerDialog(
                                                         pushStyle(SpanStyle(background = searchBgColor, color = searchTextColor, fontWeight = FontWeight.Bold))
                                                     }
                                                     isModified -> {
-                                                        pushStyle(SpanStyle(background = modifiedBgColor, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold))
+                                                        pushStyle(SpanStyle(background = modifiedBgColor, color = normalHexColor, fontWeight = FontWeight.Bold))
                                                     }
                                                     b in 32..126 -> {
                                                         pushStyle(SpanStyle(color = normalHexColor, fontWeight = FontWeight.Normal))
