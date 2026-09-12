@@ -640,9 +640,9 @@ class MainActivity : ComponentActivity() {
                                     updateStatus = updateStatus,
                                     onCheckUpdate = {
                                         val version = try {
-                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.1"
+                                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.2"
                                         } catch (e: Exception) {
-                                            "1.4.1"
+                                            "1.4.2"
                                         }
                                         viewModel.checkUpdate(version)
                                     }
@@ -844,9 +844,9 @@ class MainActivity : ComponentActivity() {
                         onClearRecentCards = { viewModel.clearRecentCards(this@MainActivity) },
                         onDismiss = { viewModel.setShowSettingsDialog(false) },
                         versionName = try {
-                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.1"
+                            packageManager.getPackageInfo(packageName, 0).versionName ?: "1.4.2"
                         } catch (_: Exception) {
-                            "1.4.1"
+                            "1.4.2"
                         }
                     )
                 }
