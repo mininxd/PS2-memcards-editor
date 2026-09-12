@@ -63,6 +63,36 @@ enum class SortBy {
     SIZE_DESC
 }
 
+data class HexEditorSession(
+    val title: String,
+    val data: ByteArray,
+    val saveName: String? = null,
+    val fileName: String? = null,
+    val isReadOnly: Boolean = false,
+    val isRawCard: Boolean = false
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is HexEditorSession) return false
+        return title == other.title &&
+                saveName == other.saveName &&
+                fileName == other.fileName &&
+                isReadOnly == other.isReadOnly &&
+                isRawCard == other.isRawCard &&
+                data.contentEquals(other.data)
+    }
+
+    override fun hashCode(): Int {
+        var result = title.hashCode()
+        result = 31 * result + data.contentHashCode()
+        result = 31 * result + (saveName?.hashCode() ?: 0)
+        result = 31 * result + (fileName?.hashCode() ?: 0)
+        result = 31 * result + isReadOnly.hashCode()
+        result = 31 * result + isRawCard.hashCode()
+        return result
+    }
+}
+
 class CardSnapshot private constructor(
     private val rawOrCompressedData: ByteArray,
     val uncompressedSize: Int,
@@ -140,6 +170,9 @@ class MemcardViewModel : ViewModel() {
 
     private val _showStatsDialog = MutableStateFlow(false)
     val showStatsDialog: StateFlow<Boolean> = _showStatsDialog.asStateFlow()
+
+    private val _hexEditorSession = MutableStateFlow<HexEditorSession?>(null)
+    val hexEditorSession: StateFlow<HexEditorSession?> = _hexEditorSession.asStateFlow()
 
     private val _hexViewerData = MutableStateFlow<Pair<String, ByteArray>?>(null)
     val hexViewerData: StateFlow<Pair<String, ByteArray>?> = _hexViewerData.asStateFlow()
@@ -473,12 +506,92 @@ class MemcardViewModel : ViewModel() {
         _showStatsDialog.value = show
     }
 
-    fun openHexViewer(title: String, data: ByteArray) {
+    fun openHexEditor(
+        title: String,
+        data: ByteArray,
+        saveName: String? = null,
+        fileName: String? = null,
+        isReadOnly: Boolean = false,
+        isRawCard: Boolean = false
+    ) {
         _hexViewerData.value = Pair(title, data)
+        _hexEditorSession.value = HexEditorSession(
+            title = title,
+            data = data,
+            saveName = saveName,
+            fileName = fileName,
+            isReadOnly = isReadOnly,
+            isRawCard = isRawCard
+        )
+    }
+
+    fun openHexViewer(title: String, data: ByteArray) {
+        openHexEditor(title, data)
     }
 
     fun closeHexViewer() {
         _hexViewerData.value = null
+        _hexEditorSession.value = null
+    }
+
+    fun closeHexEditor() {
+        closeHexViewer()
+    }
+
+    fun saveHexEditedFile(
+        saveName: String?,
+        fileName: String?,
+        newData: ByteArray,
+        isRawCard: Boolean = false
+    ) {
+        viewModelScope.launch {
+            historyMutex.withLock {
+                val current = (_uiState.value as? CardUiState.Loaded) ?: currentLoadedCard ?: return@withLock
+                withContext(Dispatchers.Default) {
+                    try {
+                        val snapshotBefore = current.memcard.getRawDataDirect().copyOf()
+                        if (isRawCard) {
+                            val newCard = Ps2Memcard.open(newData)
+                            if (newCard != null) {
+                                pushUndoSnapshot(snapshotBefore, "Raw hex edit on ${current.cardName}")
+                                val saves = newCard.listSaves()
+                                val stats = newCard.getStats()
+                                _hasUnsavedChanges.value = true
+                                setLoadedState(current.copy(memcard = newCard, saves = saves, stats = stats))
+                                _snackbarMessage.value = "Updated raw card data"
+                                _hexViewerData.value = null
+                                _hexEditorSession.value = null
+                            } else {
+                                _snackbarMessage.value = "Failed: Invalid memory card structure"
+                            }
+                            return@withContext
+                        }
+
+                        if (saveName != null && fileName != null) {
+                            val ok = current.memcard.updateSaveFile(saveName, fileName, newData)
+                            if (ok) {
+                                pushUndoSnapshot(snapshotBefore, "Edit $fileName in $saveName")
+                                val saves = current.memcard.listSaves()
+                                val stats = current.memcard.getStats()
+                                _hasUnsavedChanges.value = true
+                                val updatedSave = saves.firstOrNull { it.directoryName == saveName }
+                                setLoadedState(current.copy(saves = saves, stats = stats))
+                                if (_selectedSave.value?.directoryName == saveName) {
+                                    _selectedSave.value = updatedSave
+                                }
+                                _snackbarMessage.value = "Saved changes to $fileName"
+                                _hexViewerData.value = null
+                                _hexEditorSession.value = null
+                            } else {
+                                _snackbarMessage.value = "Failed to update $fileName"
+                            }
+                        }
+                    } catch (t: Throwable) {
+                        _snackbarMessage.value = "Save file edit error: ${t.message ?: "Failed"}"
+                    }
+                }
+            }
+        }
     }
 
     fun setSaveProtection(saveName: String, isProtected: Boolean) {

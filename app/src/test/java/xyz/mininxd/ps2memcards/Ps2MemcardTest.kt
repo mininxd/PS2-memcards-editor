@@ -841,6 +841,53 @@ class Ps2MemcardTest {
             tempDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun testUpdateSaveFileHexEditing() {
+        val cardData = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
+        val card = Ps2Memcard.open(cardData)!!
+
+        val saveName = "BASLUS-21445"
+        val originalPayload = "Original Save Content 12345678".toByteArray(Charsets.UTF_8)
+        val files = mapOf(
+            "data.bin" to originalPayload
+        )
+
+        val psuBytes = PsuHandler.packPsu(
+            saveName = saveName,
+            dirEntry = Ps2DirectoryEntry(
+                mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS,
+                length = (files.size + 2).toLong(),
+                created = Ps2Timestamp.now(),
+                cluster = 0,
+                dirEntry = 0,
+                modified = Ps2Timestamp.now(),
+                attr = 0,
+                name = saveName
+            ),
+            files = files
+        )
+
+        assertTrue(card.importPsu(psuBytes))
+        assertArrayEquals(originalPayload, card.getSaveFileBytes(saveName, "data.bin"))
+
+        // Update file with edited bytes (Hex editing simulation)
+        val editedPayload = "Modified Save Content 87654321".toByteArray(Charsets.UTF_8)
+        val updateOk = card.updateSaveFile(saveName, "data.bin", editedPayload)
+        assertTrue(updateOk)
+
+        // Verify updated content read back
+        val readBack = card.getSaveFileBytes(saveName, "data.bin")
+        assertNotNull(readBack)
+        assertArrayEquals(editedPayload, readBack)
+
+        // Verify save files listing reflects updated size
+        val saves = card.listSaves()
+        assertEquals(1, saves.size)
+        val fileEntry = saves[0].files.firstOrNull { it.name == "data.bin" }
+        assertNotNull(fileEntry)
+        assertEquals(editedPayload.size.toLong(), fileEntry!!.sizeInBytes)
+    }
 }
 
 

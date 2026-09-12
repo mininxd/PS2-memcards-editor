@@ -743,6 +743,33 @@ class Ps2Memcard private constructor(
     }
 
     /**
+     * Updates an existing file (or writes a new file) in a save directory with new content.
+     */
+    fun updateSaveFile(saveName: String, fileName: String, data: ByteArray): Boolean {
+        if (!isFormatted) return false
+        val rootCluster = if (superBlock.rootdirCluster >= allocOffset) {
+            superBlock.rootdirCluster - allocOffset
+        } else {
+            superBlock.rootdirCluster
+        }
+        val rootEntries = readDirents(rootCluster)
+        val saveEntry = rootEntries.firstOrNull { it.name.trim().trimEnd('\u0000') == saveName }
+            ?: return false
+
+        if (!saveEntry.isDirectory) return false
+
+        val subEntries = readDirents(saveEntry.cluster)
+        val template = subEntries.firstOrNull { it.name.trim().trimEnd('\u0000').equals(fileName, ignoreCase = true) }
+        val targetName = template?.name ?: fileName
+
+        val ok = writeFile(saveEntry.cluster, targetName, data, template)
+        if (ok) {
+            invalidateSavesCache()
+        }
+        return ok
+    }
+
+    /**
      * Finds an unallocated cluster on the memory card.
      */
     fun allocateCluster(): Long {
@@ -907,7 +934,9 @@ class Ps2Memcard private constructor(
         }
 
         val parentEntries = readDirents(dirCluster).toMutableList()
-        val existingSlot = parentEntries.indexOfFirst { it.name == fileName }
+        val existingSlot = parentEntries.indexOfFirst {
+            it.name.trim().trimEnd('\u0000').equals(fileName.trim().trimEnd('\u0000'), ignoreCase = true)
+        }
 
         val now = Ps2Timestamp.now()
         val templateMode = entryTemplate?.mode ?: (Ps2DirectoryEntry.DF_FILE or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX or Ps2DirectoryEntry.DF_0400)
@@ -923,7 +952,7 @@ class Ps2Memcard private constructor(
             dirEntry = 0,
             modified = if (existingSlot != -1) now else (entryTemplate?.modified ?: now),
             attr = entryTemplate?.attr ?: 0L,
-            name = fileName
+            name = if (existingSlot != -1) parentEntries[existingSlot].name else fileName
         )
 
         if (existingSlot != -1) {
@@ -943,6 +972,7 @@ class Ps2Memcard private constructor(
         if (!writeDirents(dirCluster, parentEntries)) return false
         syncParentDirectoryEntryLength(dirCluster)
         writeFatToCard()
+        invalidateSavesCache()
         return true
     }
 

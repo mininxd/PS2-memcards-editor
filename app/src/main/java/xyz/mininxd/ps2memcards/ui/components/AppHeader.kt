@@ -9,6 +9,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -54,6 +55,7 @@ fun AppHeader(
     onSaveCardAs: () -> Unit,
     onFormatCard: () -> Unit,
     onShowStats: () -> Unit,
+    onOpenRawHex: (() -> Unit)? = null,
     onCancelEdit: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -213,6 +215,16 @@ fun AppHeader(
                             onShowStats()
                         }
                     )
+                    if (onOpenRawHex != null) {
+                        DropdownMenuItem(
+                            text = { Text("Raw Card Hex Editor") },
+                            leadingIcon = { Icon(Icons.Default.Code, null) },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenRawHex()
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Format Card", color = MaterialTheme.colorScheme.error) },
                         leadingIcon = { Icon(Icons.Default.Refresh, null, tint = MaterialTheme.colorScheme.error) },

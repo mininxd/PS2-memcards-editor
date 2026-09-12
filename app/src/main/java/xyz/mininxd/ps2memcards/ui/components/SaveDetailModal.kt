@@ -293,9 +293,9 @@ fun SaveDetailModal(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "Tap file for hex",
+                    text = "Tap file for Hex Editor",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
 

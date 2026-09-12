@@ -473,7 +473,7 @@ class MainActivity : ComponentActivity() {
                 val showCreateDialog by viewModel.showCreateDialog.collectAsState()
                 val showFormatDialog by viewModel.showFormatDialog.collectAsState()
                 val showStatsDialog by viewModel.showStatsDialog.collectAsState()
-                val hexViewerData by viewModel.hexViewerData.collectAsState()
+                val hexSession by viewModel.hexEditorSession.collectAsState()
                 val snackbarMessage by viewModel.snackbarMessage.collectAsState()
                 val hasUnsavedChanges by viewModel.hasUnsavedChanges.collectAsState()
                 val customDirectoryName by viewModel.customDirectoryName.collectAsState()
@@ -611,6 +611,15 @@ class MainActivity : ComponentActivity() {
                             onSaveCardAs = { triggerSaveCardAs() },
                             onFormatCard = { viewModel.setShowFormatDialog(true) },
                             onShowStats = { viewModel.setShowStatsDialog(true) },
+                            onOpenRawHex = {
+                                (uiState as? CardUiState.Loaded)?.let { loaded ->
+                                    viewModel.openHexEditor(
+                                        title = "${loaded.cardName} (Raw Card)",
+                                        data = loaded.memcard.getRawDataDirect(),
+                                        isRawCard = true
+                                    )
+                                }
+                            },
                             onCancelEdit = { viewModel.cancelEdit() },
                             onOpenSettings = { viewModel.setShowSettingsDialog(true) }
                         )
@@ -786,7 +795,12 @@ class MainActivity : ComponentActivity() {
                         },
                         onInspectFileHex = { file ->
                             val data = file.data ?: (uiState as? CardUiState.Loaded)?.memcard?.getSaveFileBytes(save.directoryName, file.name) ?: ByteArray(0)
-                            viewModel.openHexViewer(file.name, data)
+                            viewModel.openHexEditor(
+                                title = file.name,
+                                data = data,
+                                saveName = save.directoryName,
+                                fileName = file.name
+                            )
                         }
                     )
                 }
@@ -838,16 +852,34 @@ class MainActivity : ComponentActivity() {
                         CardStatsDialog(
                             superBlock = loaded.memcard.superBlock,
                             stats = loaded.stats,
-                            onDismiss = { viewModel.setShowStatsDialog(false) }
+                            onDismiss = { viewModel.setShowStatsDialog(false) },
+                            onOpenHex = {
+                                viewModel.openHexEditor(
+                                    title = "${loaded.cardName} (Raw Card)",
+                                    data = loaded.memcard.getRawDataDirect(),
+                                    isRawCard = true
+                                )
+                            }
                         )
                     }
                 }
 
-                hexViewerData?.let { (title, data) ->
+                hexSession?.let { session ->
                     HexViewerDialog(
-                        title = title,
-                        data = data,
-                        onDismiss = { viewModel.closeHexViewer() }
+                        title = session.title,
+                        data = session.data,
+                        isReadOnly = session.isReadOnly,
+                        onSave = if (!session.isReadOnly && (session.saveName != null || session.isRawCard)) {
+                            { modifiedBytes ->
+                                viewModel.saveHexEditedFile(
+                                    saveName = session.saveName,
+                                    fileName = session.fileName,
+                                    newData = modifiedBytes,
+                                    isRawCard = session.isRawCard
+                                )
+                            }
+                        } else null,
+                        onDismiss = { viewModel.closeHexEditor() }
                     )
                 }
 

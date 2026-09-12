@@ -25,7 +25,8 @@ import xyz.mininxd.ps2memcards.core.Ps2SuperBlock
 fun CardStatsDialog(
     superBlock: Ps2SuperBlock,
     stats: CardStats,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenHex: (() -> Unit)? = null
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -72,8 +73,20 @@ fun CardStatsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onOpenHex != null) {
+                    TextButton(
+                        onClick = {
+                            onDismiss()
+                            onOpenHex()
+                        }
+                    ) {
+                        Text("Raw Hex")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
             }
         }
     )
