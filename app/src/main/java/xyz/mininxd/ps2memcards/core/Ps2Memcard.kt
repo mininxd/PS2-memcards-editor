@@ -1045,7 +1045,7 @@ class Ps2Memcard private constructor(
         return importUnpackedSave(unpacked)
     }
 
-    private fun importUnpackedSave(unpacked: PsuHandler.UnpackedPsu): Boolean {
+    fun importUnpackedSave(unpacked: PsuHandler.UnpackedPsu): Boolean {
         val saveName = unpacked.dirEntry.name.trim().trimEnd('\u0000').ifBlank { "IMPORT" }
 
         // If a save with the same name exists, delete it first

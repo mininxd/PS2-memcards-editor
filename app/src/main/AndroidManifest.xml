@@ -66,6 +66,11 @@
                 <data android:pathPattern=".*\\..*\\.psu" />
                 <data android:pathPattern=".*\\.max" />
                 <data android:pathPattern=".*\\..*\\.max" />
+                <data android:pathPattern=".*\\.cbs" />
+                <data android:pathPattern=".*\\..*\\.cbs" />
+                <data android:pathPattern=".*\\.xps" />
+                <data android:pathPattern=".*\\..*\\.xps" />
+                <data android:pathPattern=".*_pcsx2_superblock.*" />
             </intent-filter>
 
             <!-- Memory card file association (content scheme) -->
@@ -89,6 +94,11 @@
                 <data android:pathPattern=".*\\..*\\.psu" />
                 <data android:pathPattern=".*\\.max" />
                 <data android:pathPattern=".*\\..*\\.max" />
+                <data android:pathPattern=".*\\.cbs" />
+                <data android:pathPattern=".*\\..*\\.cbs" />
+                <data android:pathPattern=".*\\.xps" />
+                <data android:pathPattern=".*\\..*\\.xps" />
+                <data android:pathPattern=".*_pcsx2_superblock.*" />
             </intent-filter>
         </activity>
     </application>

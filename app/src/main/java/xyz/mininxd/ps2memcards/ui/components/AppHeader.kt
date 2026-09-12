@@ -55,6 +55,7 @@ fun AppHeader(
     onFormatCard: () -> Unit,
     onShowStats: () -> Unit,
     onCancelEdit: (() -> Unit)? = null,
+    onOpenFolderCard: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -169,6 +170,16 @@ fun AppHeader(
                             onOpenCard()
                         }
                     )
+                    if (onOpenFolderCard != null) {
+                        DropdownMenuItem(
+                            text = { Text("Open Folder Card") },
+                            leadingIcon = { Icon(Icons.Default.FolderOpen, null) },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenFolderCard()
+                            }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("New Card") },
                         leadingIcon = { Icon(Icons.Default.Add, null) },

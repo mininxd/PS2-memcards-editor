@@ -167,9 +167,34 @@ data class Ps2Timestamp(
         return bytes
     }
 
+    fun toEpochSeconds(): Long {
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Tokyo"))
+        cal.set(Calendar.YEAR, year)
+        cal.set(Calendar.MONTH, maxOf(0, month - 1))
+        cal.set(Calendar.DAY_OF_MONTH, day)
+        cal.set(Calendar.HOUR_OF_DAY, hour)
+        cal.set(Calendar.MINUTE, minute)
+        cal.set(Calendar.SECOND, second)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis / 1000L
+    }
+
     companion object {
         fun now(): Ps2Timestamp {
             val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Tokyo"))
+            return Ps2Timestamp(
+                second = cal.get(Calendar.SECOND),
+                minute = cal.get(Calendar.MINUTE),
+                hour = cal.get(Calendar.HOUR_OF_DAY),
+                day = cal.get(Calendar.DAY_OF_MONTH),
+                month = cal.get(Calendar.MONTH) + 1,
+                year = cal.get(Calendar.YEAR)
+            )
+        }
+
+        fun fromEpochSeconds(epochSeconds: Long): Ps2Timestamp {
+            val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Tokyo"))
+            cal.timeInMillis = epochSeconds * 1000L
             return Ps2Timestamp(
                 second = cal.get(Calendar.SECOND),
                 minute = cal.get(Calendar.MINUTE),

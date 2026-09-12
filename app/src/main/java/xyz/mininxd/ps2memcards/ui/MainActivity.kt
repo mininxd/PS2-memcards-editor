@@ -57,8 +57,10 @@ import androidx.core.app.ActivityCompat
 import xyz.mininxd.ps2memcards.core.ExportFilenameFormat
 import xyz.mininxd.ps2memcards.core.MemcardFormatter
 import xyz.mininxd.ps2memcards.core.Ps2Save
+import xyz.mininxd.ps2memcards.core.FolderMemcardHandler
 import xyz.mininxd.ps2memcards.core.RecentCard
 import xyz.mininxd.ps2memcards.core.StoragePermissionHelper
+import java.io.File
 import xyz.mininxd.ps2memcards.ui.components.AppHeader
 import xyz.mininxd.ps2memcards.ui.components.CardStatsDialog
 import xyz.mininxd.ps2memcards.ui.components.CreateCardDialog
@@ -121,6 +123,25 @@ class MainActivity : ComponentActivity() {
                 } catch (_: Exception) {}
             }
             loadCardFromUri(it)
+        }
+    }
+
+    private val openFolderCardLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        isWaitingForActivityResult = false
+        uri?.let {
+            try {
+                contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+
+            val resolved = StoragePermissionHelper.resolveFileFromUri(this, it)
+            if (resolved != null && resolved.isDirectory) {
+                viewModel.loadFolderCard(resolved, this)
+            } else {
+                loadCardFromUri(it)
+            }
         }
     }
 
@@ -261,10 +282,16 @@ class MainActivity : ComponentActivity() {
     private val importSaveLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         isWaitingForActivityResult = false
         uri?.let {
+            val fileName = queryFileName(it) ?: "save"
+            val file = StoragePermissionHelper.resolveFileFromUri(this, it)
+            if (file != null && file.isDirectory) {
+                viewModel.importSaveFolder(file)
+                return@registerForActivityResult
+            }
             try {
                 contentResolver.openInputStream(it)?.use { stream ->
                     val bytes = stream.readBytes()
-                    viewModel.importSave(bytes)
+                    viewModel.importSaveWithValidation(bytes, fileName)
                 }
             } catch (e: Exception) {
                 showToast("Failed to read save file: ${e.message}", isLong = true)
@@ -410,6 +437,11 @@ class MainActivity : ComponentActivity() {
     private fun launchOpenCard() {
         isWaitingForActivityResult = true
         openCardLauncher.launch(arrayOf("*/*"))
+    }
+
+    private fun launchOpenFolderCard() {
+        isWaitingForActivityResult = true
+        openFolderCardLauncher.launch(null)
     }
 
     private fun launchSelectSaveDirectory() {
@@ -597,6 +629,7 @@ class MainActivity : ComponentActivity() {
                             onFormatCard = { viewModel.setShowFormatDialog(true) },
                             onShowStats = { viewModel.setShowStatsDialog(true) },
                             onCancelEdit = { viewModel.cancelEdit() },
+                            onOpenFolderCard = { launchOpenFolderCard() },
                             onOpenSettings = { viewModel.setShowSettingsDialog(true) }
                         )
                     },
@@ -625,6 +658,7 @@ class MainActivity : ComponentActivity() {
                             is CardUiState.Empty -> {
                                 EmptyStateScreen(
                                     onOpenCard = { launchOpenCard() },
+                                    onOpenFolderCard = { launchOpenFolderCard() },
                                     onCreateCard = { viewModel.setShowCreateDialog(true) },
                                     recentCards = recentCards,
                                     onOpenRecentCard = { recent ->
@@ -882,6 +916,39 @@ class MainActivity : ComponentActivity() {
 
     private fun triggerSaveCurrentCard() {
         val loaded = viewModel.uiState.value as? CardUiState.Loaded ?: return
+
+        // If card is a folder card and has a folder path on disk
+        if (loaded.isFolderCard && loaded.folderPath != null) {
+            val folder = File(loaded.folderPath)
+            lifecycleScope.launch {
+                viewModel.setLoading("Saving ${loaded.cardName} folder...")
+                withContext(Dispatchers.IO) {
+                    try {
+                        val ok = FolderMemcardHandler.convertFileToFolder(loaded.memcard, folder)
+                        if (ok) {
+                            withContext(Dispatchers.Main) {
+                                viewModel.markCardSaved(loaded.cardUri, loaded.cardName, this@MainActivity)
+                                showToast("Saved ${loaded.cardName} folder successfully!")
+                                val action = pendingActionAfterSave
+                                pendingActionAfterSave = null
+                                action?.invoke()
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                showToast("Failed to save folder memory card", isLong = true)
+                                viewModel.clearLoading()
+                            }
+                        }
+                    } catch (t: Throwable) {
+                        withContext(Dispatchers.Main) {
+                            showToast("Failed to save folder card: ${t.message ?: "Error"}", isLong = true)
+                            viewModel.clearLoading()
+                        }
+                    }
+                }
+            }
+            return
+        }
 
         // If card already has a file URI, save directly to it
         if (loaded.cardUri != null) {

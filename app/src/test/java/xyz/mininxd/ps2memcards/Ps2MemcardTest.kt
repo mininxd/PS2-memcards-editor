@@ -1,14 +1,18 @@
 package xyz.mininxd.ps2memcards
 
+import xyz.mininxd.ps2memcards.core.FolderMemcardHandler
 import xyz.mininxd.ps2memcards.core.MaxHandler
 import xyz.mininxd.ps2memcards.core.MemcardFormatter
 import xyz.mininxd.ps2memcards.core.Ps2DirectoryEntry
 import xyz.mininxd.ps2memcards.core.Ps2Ecc
+import xyz.mininxd.ps2memcards.core.Ps2FileDetector
+import xyz.mininxd.ps2memcards.core.Ps2FileType
 import xyz.mininxd.ps2memcards.core.Ps2Lzari
 import xyz.mininxd.ps2memcards.core.Ps2Memcard
 import xyz.mininxd.ps2memcards.core.Ps2SuperBlock
 import xyz.mininxd.ps2memcards.core.Ps2Timestamp
 import xyz.mininxd.ps2memcards.core.PsuHandler
+import java.io.File
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -609,6 +613,186 @@ class Ps2MemcardTest {
         val iconBytes = iconName.toByteArray(Charsets.US_ASCII)
         System.arraycopy(iconBytes, 0, data, 0x104, minOf(iconBytes.size, 64))
         return data
+    }
+
+    @Test
+    fun testDetectPcsx2SuperblockAndFolderCard() {
+        val sbFile = File("saves_test/MemoryCard/_pcsx2_superblock")
+        if (sbFile.exists()) {
+            val result = Ps2FileDetector.detect(sbFile)
+            assertEquals(Ps2FileType.PS2_FOLDER_MEMCARD, result.fileType)
+            assertTrue(result.isValid)
+            assertTrue(result.isMemcard)
+            assertNotNull(result.folderDir)
+            assertEquals("MemoryCard", result.folderDir?.name)
+
+            // Test detecting byte array directly
+            val bytes = sbFile.readBytes()
+            val detectedFromBytes = Ps2FileDetector.detect(bytes, "_pcsx2_superblock")
+            assertEquals(Ps2FileType.PS2_FOLDER_MEMCARD, detectedFromBytes)
+
+            // Test detecting folder directly
+            val folderResult = Ps2FileDetector.detect(File("saves_test/MemoryCard"))
+            assertEquals(Ps2FileType.PS2_FOLDER_MEMCARD, folderResult.fileType)
+            assertTrue(folderResult.isValid)
+            assertTrue(folderResult.isMemcard)
+        }
+    }
+
+    @Test
+    fun testDetectStandardMemcardImage() {
+        val mcdFile = File("saves_test/app_mcd001.ps2")
+        if (mcdFile.exists()) {
+            val result = Ps2FileDetector.detect(mcdFile)
+            assertEquals(Ps2FileType.PS2_MEMCARD_IMAGE, result.fileType)
+            assertTrue(result.isValid)
+            assertTrue(result.isMemcard)
+        }
+
+        // Test with freshly formatted card bytes
+        val formatted = MemcardFormatter.format(sizeInMB = 8, useEcc = true)
+        val detected = Ps2FileDetector.detect(formatted, "test.ps2")
+        assertEquals(Ps2FileType.PS2_MEMCARD_IMAGE, detected)
+    }
+
+    @Test
+    fun testDetectSavegames() {
+        val maxFile = File("saves_test/black.max")
+        if (maxFile.exists()) {
+            val result = Ps2FileDetector.detect(maxFile)
+            assertEquals(Ps2FileType.SAVEGAME_MAX, result.fileType)
+            assertTrue(result.isValid)
+            assertTrue(result.isSavegame)
+        }
+
+        // Test PSU save detection
+        val psuBytes = PsuHandler.packPsu(
+            saveName = "BASLUS-21445",
+            dirEntry = Ps2DirectoryEntry(
+                mode = Ps2DirectoryEntry.DF_DIRECTORY or Ps2DirectoryEntry.DF_EXISTS or Ps2DirectoryEntry.DF_RWX,
+                length = 3,
+                created = Ps2Timestamp.now(),
+                cluster = 0,
+                dirEntry = 0,
+                modified = Ps2Timestamp.now(),
+                attr = 0,
+                name = "BASLUS-21445"
+            ),
+            files = mapOf("data.bin" to ByteArray(100))
+        )
+        val psuResult = Ps2FileDetector.detect(psuBytes, "save.psu")
+        assertEquals(Ps2FileType.SAVEGAME_PSU, psuResult)
+    }
+
+    @Test
+    fun testRejectInvalidFiles() {
+        // Random text
+        val textBytes = "This is a plain text file, not a memory card or savegame.".toByteArray(Charsets.UTF_8)
+        val textResult = Ps2FileDetector.detect(textBytes, "notes.txt")
+        assertEquals(Ps2FileType.INVALID, textResult)
+
+        // Random binary noise
+        val noiseBytes = ByteArray(500) { (it * 7 % 256).toByte() }
+        val noiseResult = Ps2FileDetector.detect(noiseBytes, "corrupt.bin")
+        assertEquals(Ps2FileType.INVALID, noiseResult)
+
+        // Empty file
+        val emptyResult = Ps2FileDetector.detect(ByteArray(0), "empty.dat")
+        assertEquals(Ps2FileType.INVALID, emptyResult)
+
+        // Superblock byte array passed without filename should still be recognized as superblock
+        val sbFile = File("saves_test/MemoryCard/_pcsx2_superblock")
+        if (sbFile.exists()) {
+            val sbBytes = sbFile.readBytes()
+            val detected = Ps2FileDetector.detect(sbBytes, "unknown_file")
+            assertEquals(Ps2FileType.PS2_FOLDER_MEMCARD, detected)
+        }
+    }
+
+    @Test
+    fun testPcsx2IndexParsing() {
+        val sampleIndex = "{\$ROOT: {timeCreated: 1789222698,timeModified: 1789222700}," +
+                "gh.icn: {order: 1,timeCreated: 1789222698,timeModified: 1789222698}," +
+                "icon.sys: {order: 2,timeCreated: 1789222699,timeModified: 1789222699}," +
+                "BASLUS-21447: {order: 3,timeCreated: 1789222699,timeModified: 1789222699}," +
+                "data: {order: 4,timeCreated: 1789222699,timeModified: 1789222700}}"
+
+        val parsed = FolderMemcardHandler.parseIndexContent(sampleIndex)
+        assertNotNull(parsed.rootCreated)
+        assertNotNull(parsed.rootModified)
+        assertEquals(1, parsed.fileOrder["gh.icn"])
+        assertEquals(2, parsed.fileOrder["icon.sys"])
+        assertEquals(3, parsed.fileOrder["BASLUS-21447"])
+        assertEquals(4, parsed.fileOrder["data"])
+    }
+
+    @Test
+    fun testLoadFolderMemcardFromTestDirectory() {
+        val folder = File("saves_test/MemoryCard")
+        if (folder.exists() && folder.isDirectory) {
+            val card = FolderMemcardHandler.loadFolderMemcard(folder)
+            assertNotNull(card)
+            assertTrue(card!!.superBlock.isFormatted())
+
+            val saves = card.listSaves()
+            assertEquals(1, saves.size)
+            assertEquals("BASLUS-21447", saves[0].directoryName)
+
+            // Verify the save files
+            val fileNames = saves[0].files.map { it.name }.toSet()
+            assertTrue(fileNames.contains("BASLUS-21447"))
+            assertTrue(fileNames.contains("data"))
+            assertTrue(fileNames.contains("gh.icn"))
+            assertTrue(fileNames.contains("icon.sys"))
+
+            // Verify _pcsx2_index was NOT imported as a PS2 save file
+            assertFalse(fileNames.contains("_pcsx2_index"))
+
+            // Verify data file size matches
+            val dataBytes = card.getSaveFileBytes("BASLUS-21447", "data")
+            assertNotNull(dataBytes)
+            assertEquals(138240, dataBytes!!.size)
+
+            // Verify icon.sys exists
+            val iconBytes = card.getSaveFileBytes("BASLUS-21447", "icon.sys")
+            assertNotNull(iconBytes)
+            assertEquals(964, iconBytes!!.size)
+        }
+    }
+
+    @Test
+    fun testFolderMemcardRoundtrip() {
+        val sourceFolder = File("saves_test/MemoryCard")
+        if (!sourceFolder.exists()) return
+
+        val card = FolderMemcardHandler.loadFolderMemcard(sourceFolder)
+        assertNotNull(card)
+
+        // Convert to temp folder
+        val tempDir = File(System.getProperty("java.io.tmpdir"), "test_folder_mcd_${System.currentTimeMillis()}")
+        try {
+            val converted = FolderMemcardHandler.convertFileToFolder(card!!, tempDir)
+            assertTrue(converted)
+
+            val sbFile = File(tempDir, "_pcsx2_superblock")
+            assertTrue(sbFile.exists())
+            assertEquals(8192, sbFile.length())
+
+            val saveDir = File(tempDir, "BASLUS-21447")
+            assertTrue(saveDir.exists() && saveDir.isDirectory)
+            assertTrue(File(saveDir, "data").exists())
+            assertTrue(File(saveDir, "_pcsx2_index").exists())
+
+            // Reload from temp folder
+            val reloaded = FolderMemcardHandler.loadFolderMemcard(tempDir)
+            assertNotNull(reloaded)
+            val reSaves = reloaded!!.listSaves()
+            assertEquals(1, reSaves.size)
+            assertEquals("BASLUS-21447", reSaves[0].directoryName)
+            assertEquals(138240, reloaded.getSaveFileBytes("BASLUS-21447", "data")?.size)
+        } finally {
+            tempDir.deleteRecursively()
+        }
     }
 }
 
